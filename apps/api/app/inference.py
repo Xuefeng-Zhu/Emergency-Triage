@@ -29,6 +29,27 @@ class StubTranscriber:
         }
 
 
+class EchoTranscriber:
+    """Decodes the uploaded blob as UTF-8 text instead of transcribing it.
+
+    Testing backend (TRIAGE_STT_MODE=echo): lets hand-edited transcript files
+    be posted to /utterance so every hop after STT runs live while live
+    transcription is unavailable. Never a production mode.
+    """
+
+    async def transcribe(self, audio_bytes: bytes, suffix: str) -> dict[str, Any]:
+        del suffix
+        try:
+            text = audio_bytes.decode("utf-8").strip()
+        except UnicodeDecodeError as error:
+            raise ValueError(
+                "Echo STT mode expects UTF-8 text, not audio."
+            ) from error
+        if not text:
+            raise ValueError("The utterance text was empty.")
+        return {"text": text, "duration_ms": 0}
+
+
 class WhisperXTranscriber:
     _lock = asyncio.Lock()
 
@@ -174,6 +195,18 @@ class NemoClawCompletionEngine:
 
 
 def build_inference(settings: Settings) -> tuple[Transcriber, CompletionEngine]:
+    stt_mode = settings.triage_stt_mode or settings.triage_mode
+    transcriber: Transcriber
+    if stt_mode == "live":
+        transcriber = WhisperXTranscriber(settings)
+    elif stt_mode == "echo":
+        transcriber = EchoTranscriber()
+    else:
+        transcriber = StubTranscriber()
+
+    completion: CompletionEngine
     if settings.triage_mode == "live":
-        return WhisperXTranscriber(settings), NemoClawCompletionEngine(settings)
-    return StubTranscriber(), StubCompletionEngine()
+        completion = NemoClawCompletionEngine(settings)
+    else:
+        completion = StubCompletionEngine()
+    return transcriber, completion

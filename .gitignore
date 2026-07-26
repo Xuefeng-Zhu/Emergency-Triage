@@ -5,8 +5,11 @@ __pycache__/
 *.pyc
 *.tsbuildinfo
 *.sqlite3
-data/
+/data/
+/apps/api/data/
 dist/
 node_modules/
 apps/web/dist/
 apps/api/.coverage
+
+ungitable/

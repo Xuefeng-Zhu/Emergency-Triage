@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     )
 
     triage_mode: Literal["stub", "live"] = "stub"
+    # Overrides STT selection independently of triage_mode. "echo" decodes the
+    # uploaded bytes as UTF-8 text — lets live-mode testing run hand-edited
+    # transcript files through /utterance while live transcription is unavailable.
+    triage_stt_mode: Literal["stub", "echo", "live"] | None = None
     triage_host: str = "0.0.0.0"
     triage_port: int = 8787
     triage_database_path: Path = Path("./data/triage.sqlite3")
