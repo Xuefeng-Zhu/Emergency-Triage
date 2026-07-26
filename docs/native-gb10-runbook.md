@@ -24,6 +24,11 @@ cp .env.example .env
 scripts/bootstrap-dell.sh
 ```
 
+On ARM64, the bootstrap deliberately installs the CUDA 13 PyTorch wheels before
+WhisperX. It also installs the CUDA 12 cuBLAS/cuDNN compatibility libraries used
+by the current prebuilt CTranslate2 wheel; do not replace this with a plain
+`pip install whisperx`, which resolves a CPU-oriented PyTorch build on ARM64.
+
 Install NemoClaw only after reviewing its third-party notice:
 
 ```bash
