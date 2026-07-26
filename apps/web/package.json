@@ -1,0 +1,33 @@
+{
+  "name": "@emergency-trial/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "BETTER_AUTH_SECRET=build-time-only-not-used-at-runtime-00000000 next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "bootstrap:admin": "tsx --env-file=../../.env scripts/bootstrap-admin.ts"
+  },
+  "dependencies": {
+    "@emergency-trial/contracts": "workspace:*",
+    "@emergency-trial/db": "workspace:*",
+    "@node-rs/argon2": "2.0.2",
+    "better-auth": "1.6.25",
+    "drizzle-orm": "0.45.2",
+    "next": "16.2.12",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "tsx": "4.21.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

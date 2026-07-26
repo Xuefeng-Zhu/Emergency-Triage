@@ -1,0 +1,27 @@
+{
+  "name": "emergency-trial",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22.16.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @emergency-trial/web --filter @emergency-trial/realtime dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "test:run": "pnpm -r --if-present test:run",
+    "db:generate": "pnpm --filter @emergency-trial/db db:generate",
+    "db:migrate": "pnpm --filter @emergency-trial/db db:migrate",
+    "db:check": "pnpm --filter @emergency-trial/db db:check",
+    "bootstrap:admin": "pnpm --filter @emergency-trial/web bootstrap:admin",
+    "check": "pnpm typecheck && pnpm test:run && pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

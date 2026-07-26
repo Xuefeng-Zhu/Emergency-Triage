@@ -1,0 +1,13 @@
+main:
+  tools:
+    profile: minimal
+    allow:
+      - read
+
+agents:
+  - id: transcript-analyst
+    description: Analyzes timestamped transcripts as untrusted data.
+    tools:
+      profile: minimal
+      allow:
+        - read

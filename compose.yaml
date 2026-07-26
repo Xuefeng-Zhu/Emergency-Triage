@@ -1,0 +1,192 @@
+name: emergency-trial
+
+x-app-environment: &app-environment
+  DATABASE_URL: ${DATABASE_URL_DOCKER}
+  DATA_ROOT_CONTAINER: /data
+  AUDIO_RETENTION_DAYS: ${AUDIO_RETENTION_DAYS:-30}
+  BLOCK_HEAVY_JOBS_WHILE_LIVE: ${BLOCK_HEAVY_JOBS_WHILE_LIVE:-true}
+
+services:
+  postgres:
+    image: postgres:17.5-bookworm
+    restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - unix_socket_directories=/var/run/postgresql,/host-postgres-socket
+      - -c
+      - unix_socket_permissions=0777
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - /run/emergency-trial-postgres:/host-postgres-socket
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [internal]
+
+  migrate:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: infra/migrate/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      APP_ORIGIN: ${APP_ORIGIN}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      REALTIME_HEALTH_URL: http://realtime:3001/health/ready
+      NEXT_PUBLIC_REALTIME_PATH: /ws
+      PREVIEW_ENABLED: ${PREVIEW_ENABLED:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health/live').then(r=>{if(!r.ok)process.exit(1)})",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  realtime:
+    build:
+      context: .
+      dockerfile: services/realtime/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      REALTIME_PORT: 3001
+      INTERNAL_WEB_URL: http://web:3000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      WHISPERLIVEKIT_URL: ws://whisperlivekit:8000/asr
+      WHISPERLIVEKIT_HEALTH_URL: http://whisperlivekit:8000/
+    volumes:
+      - audio-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      whisperlivekit:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health/live').then(r=>{if(!r.ok)process.exit(1)})",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  whisperlivekit:
+    build:
+      context: https://github.com/QuentinFuxa/WhisperLiveKit.git#v0.2.20
+      args:
+        EXTRAS: cu129
+    restart: unless-stopped
+    command:
+      - --port
+      - "8000"
+      - --model
+      - ${WHISPERLIVEKIT_MODEL:-small}
+      - --pcm-input
+    environment:
+      HF_HOME: /models/huggingface
+    volumes:
+      - model-cache:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks: [internal, model-egress]
+
+  whisperx:
+    build:
+      context: .
+      dockerfile: services/whisperx/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      WHISPERX_MODEL: ${WHISPERX_MODEL:-medium}
+      WHISPERX_BATCH_SIZE: ${WHISPERX_BATCH_SIZE:-4}
+      WHISPERX_COMPUTE_TYPE: ${WHISPERX_COMPUTE_TYPE:-float16}
+      WHISPERX_DEVICE: ${WHISPERX_DEVICE:-cuda}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_HOME: /models/huggingface
+      TORCH_HOME: /models/torch
+    volumes:
+      - audio-data:/data
+      - model-cache:/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks: [internal, model-egress]
+
+  caddy:
+    image: caddy:2.10.0-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${CADDY_PORT:-8080}:8080"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      web:
+        condition: service_healthy
+      realtime:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/api/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+volumes:
+  postgres-data:
+  audio-data:
+  model-cache:
+
+networks:
+  internal:
+    internal: true
+  # Only ASR containers receive outbound access so they can hydrate the shared
+  # Hugging Face model cache. No port from this network is published.
+  model-egress:

@@ -1,0 +1,24 @@
+[Unit]
+Description=Emergency Trial NemoClaw analysis worker
+After=network-online.target docker.service emergency-trial.service
+Wants=network-online.target
+Requires=docker.service emergency-trial.service
+
+[Service]
+Type=simple
+User=emergency-trial
+Group=emergency-trial
+WorkingDirectory=/opt/emergency-trial
+EnvironmentFile=/opt/emergency-trial/.env
+ExecStart=/opt/emergency-trial/infra/scripts/run-agent-worker.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/emergency-trial /run/emergency-trial-postgres
+
+[Install]
+WantedBy=multi-user.target
