@@ -15,26 +15,30 @@ contract and demo choreography — it is the source of truth for design intent.
 ## Layout
 
 - `apps/api` — FastAPI backend (Python ≥3.12), the entire agent + governance surface.
-- `apps/web` — React 19 + Vite + TypeScript tablet client (pnpm workspace `@emergency-trial/web`).
+- `frontend/` — the current React 19 + Vite + TypeScript tablet client (standalone npm project,
+  dev server on :5174). This is what `scripts/dev.sh` launches.
+- `apps/web` — the previous tablet client (pnpm workspace `@emergency-trial/web`), kept for
+  reference; no longer wired into the dev tooling.
 - `agent/` — the sandbox agent contract (`AGENTS.md`) and NemoClaw policy preset for live mode.
 - `docs/` — architecture scope, hackathon brief, and the GB10 runbook.
 - `scripts/` — `dev.sh` (run both apps), `bootstrap-dell.sh`, `install-nemoclaw.sh`.
 
 ## Commands
 
-Run both apps locally (creates `.venv`, installs, starts uvicorn on :8787 and Vite on :5173):
+Run both apps locally (creates `.venv`, installs, starts uvicorn on :8787 and Vite on :5174):
 ```bash
 cp .env.example .env   # first time
 scripts/dev.sh
 ```
-Web (from repo root, via pnpm workspace):
+Web (the current client lives in `frontend/`, plain npm):
 ```bash
-pnpm run dev:web        # vite dev server
-pnpm run build          # tsc -b && vite build
-pnpm run typecheck      # tsc -b
-pnpm run test:web       # vitest run
+cd frontend
+npm run dev             # vite dev server on :5174
+npm run build           # tsc -b && vite build
+npm run lint            # oxlint
 ```
-Run a single web test: `pnpm --filter @emergency-trial/web exec vitest run src/api.test.ts`
+(The legacy `apps/web` pnpm workspace commands — `pnpm run dev:web`, `pnpm run test:web` —
+still work against the old client.)
 
 API (Python; the venv lives at repo-root `.venv`, package installed editable as `apps/api[dev]`):
 ```bash

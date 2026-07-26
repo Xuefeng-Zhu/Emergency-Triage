@@ -38,6 +38,22 @@ export interface AuditEntry {
   outcome: string;
 }
 
+export interface HealthStatus {
+  status: string;
+  mode: string;
+  stt_mode: string;
+  local_processing: boolean;
+  egress_default: string;
+}
+
+export interface WhisperXResult {
+  text: string;
+  duration_ms: number;
+  processing_ms: number;
+  model: string;
+  device: string;
+}
+
 export interface Session {
   session_id: string;
   started_at: string;
