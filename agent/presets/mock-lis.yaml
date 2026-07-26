@@ -1,17 +1,22 @@
-version: 1
-name: emergency-trial-mock-lis
-description: Permit only approved order submission to the host-side mock LIS.
+preset:
+  name: emergency-trial-mock-lis
+  description: Permit only approved order submission to the host-side mock LIS.
+
 network_policies:
   emergency_trial_mock_lis:
-    name: emergency-trial-mock-lis
+    name: emergency_trial_mock_lis
     endpoints:
       - host: host.openshell.internal
         port: 8787
         protocol: rest
         enforcement: enforce
+        allowed_ips:
+          # OpenShell's SSRF guard rejects private host-gateway IPs unless the
+          # policy explicitly allowlists the resolved address.
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
         rules:
-          - allow:
-              method: POST
-              path: /mock-lis/orders
+          - allow: { method: POST, path: "/mock-lis/orders" }
     binaries:
-      - path: /usr/bin/curl
+      - { path: /usr/bin/curl }

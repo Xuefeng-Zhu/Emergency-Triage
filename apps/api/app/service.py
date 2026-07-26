@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
@@ -23,6 +24,8 @@ from .pathways import (
     reference_slice,
 )
 from .repository import SessionRepository
+
+logger = logging.getLogger(__name__)
 
 
 def classification_schema() -> dict:
@@ -225,6 +228,9 @@ class TriageService:
         try:
             order_ref = await self.submitter.submit(proposal)
         except Exception as error:
+            logger.exception(
+                "order egress failed closed for proposal %s", proposal_id
+            )
             session.audit.append(
                 AuditEntry(
                     actor="System egress",

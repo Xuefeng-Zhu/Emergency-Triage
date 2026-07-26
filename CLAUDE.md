@@ -44,6 +44,8 @@ API (Python; the venv lives at repo-root `.venv`, package installed editable as 
 ```
 Note: `pytest` is configured with `pythonpath=["."]` and `testpaths=["tests"]` relative to
 `apps/api`, and `asyncio_mode=auto` — async tests need no decorator.
+`apps/api/tests/conftest.py` pins `TRIAGE_MODE=stub` so a live `.env` on the box
+can't drag the suite onto the GPU; `TRIAGE_TEST_ALLOW_ENV=1` opts out.
 
 ## Architecture
 
