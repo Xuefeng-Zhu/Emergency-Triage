@@ -12,6 +12,7 @@ import {
   Plus,
   ShieldCheck,
   Sparkles,
+  Square,
   Stethoscope,
   UserRound,
   X,
@@ -21,7 +22,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type PointerEvent,
 } from "react";
 
 import {
@@ -38,6 +38,8 @@ const NURSES = [
   { id: "rn-alex", name: "RN Alex Morgan" },
   { id: "rn-jordan", name: "RN Jordan Lee" },
 ];
+
+type RecordingPhase = "idle" | "starting" | "recording" | "processing";
 
 function timeLabel(timestamp: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -103,12 +105,22 @@ function AppHeader({
 function TranscriptPanel({
   session,
   busy,
+  recordingPhase,
   onRecord,
 }: {
   session: Session | null;
   busy: boolean;
-  onRecord: (event: PointerEvent<HTMLButtonElement>) => void;
+  recordingPhase: RecordingPhase;
+  onRecord: () => void;
 }) {
+  const isRecording = recordingPhase === "recording";
+  const recordingCopy = {
+    idle: ["Start recording", "Tap to begin speaking"],
+    starting: ["Starting microphone…", "Allow browser access if prompted"],
+    recording: ["Stop recording", "Tap when you are finished"],
+    processing: ["Processing locally…", "WhisperX is transcribing"],
+  }[recordingPhase];
+
   return (
     <section className="panel transcript-panel">
       <div className="panel-title">
@@ -138,14 +150,18 @@ function TranscriptPanel({
         )}
       </div>
       <button
-        className={`talk-button ${busy ? "recording" : ""}`}
-        onPointerDown={onRecord}
-        disabled={!session || busy}
-        aria-label="Hold to talk"
+        type="button"
+        className={`talk-button ${isRecording ? "recording" : ""}`}
+        onClick={onRecord}
+        disabled={!session || (busy && !isRecording)}
+        aria-label={recordingCopy[0]}
+        aria-pressed={isRecording}
       >
-        <span className="mic-orbit"><Mic size={31} /></span>
-        <strong>{busy ? "Processing locally…" : "Hold to talk"}</strong>
-        <span>{busy ? "WhisperX is transcribing" : "Press and hold to speak"}</span>
+        <span className="mic-orbit">
+          {isRecording ? <Square size={25} fill="currentColor" /> : <Mic size={31} />}
+        </span>
+        <strong>{recordingCopy[0]}</strong>
+        <span>{recordingCopy[1]}</span>
       </button>
     </section>
   );
@@ -314,10 +330,19 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [nurseIndex, setNurseIndex] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [recordingPhase, setRecordingPhase] =
+    useState<RecordingPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
+  const recordingStream = useRef<MediaStream | null>(null);
+  const recordingPhaseRef = useRef<RecordingPhase>("idle");
   const chunks = useRef<Blob[]>([]);
   const initialized = useRef(false);
+
+  const changeRecordingPhase = (phase: RecordingPhase) => {
+    recordingPhaseRef.current = phase;
+    setRecordingPhase(phase);
+  };
 
   useEffect(() => {
     const handlePopState = () =>
@@ -348,20 +373,47 @@ export function App() {
     void startNew();
   }, [startNew]);
 
-  const beginRecording = async (event: PointerEvent<HTMLButtonElement>) => {
-    event.currentTarget.setPointerCapture(event.pointerId);
+  useEffect(() => {
+    return () => {
+      const activeRecorder = recorder.current;
+      if (activeRecorder) {
+        activeRecorder.onstop = null;
+        if (activeRecorder.state === "recording") activeRecorder.stop();
+      }
+      recordingStream.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  const toggleRecording = async () => {
+    if (recordingPhaseRef.current === "recording") {
+      changeRecordingPhase("processing");
+      if (recorder.current?.state === "recording") recorder.current.stop();
+      return;
+    }
+    if (recordingPhaseRef.current !== "idle" || busy) return;
+
+    changeRecordingPhase("starting");
+    setBusy(true);
     setError(null);
     try {
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        throw new Error("This browser does not support microphone recording.");
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
+      recordingStream.current = stream;
       chunks.current = [];
       recorder.current = mediaRecorder;
-      mediaRecorder.ondataavailable = (data) => chunks.current.push(data.data);
+      mediaRecorder.ondataavailable = (data) => {
+        if (data.data.size > 0) chunks.current.push(data.data);
+      };
       mediaRecorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
-        if (!session) return;
-        setBusy(true);
+        recorder.current = null;
+        recordingStream.current = null;
+        changeRecordingPhase("processing");
         try {
+          if (!session) throw new Error("The encounter is not ready.");
           const blob = new Blob(chunks.current, {
             type: mediaRecorder.mimeType || "audio/webm",
           });
@@ -370,19 +422,17 @@ export function App() {
         } catch (caught) {
           setError(caught instanceof Error ? caught.message : "Transcription failed");
         } finally {
+          changeRecordingPhase("idle");
           setBusy(false);
         }
       };
       mediaRecorder.start();
-      setBusy(true);
-      const finish = () => {
-        if (mediaRecorder.state === "recording") mediaRecorder.stop();
-        window.removeEventListener("pointerup", finish);
-        window.removeEventListener("pointercancel", finish);
-      };
-      window.addEventListener("pointerup", finish);
-      window.addEventListener("pointercancel", finish);
+      changeRecordingPhase("recording");
     } catch (caught) {
+      recordingStream.current?.getTracks().forEach((track) => track.stop());
+      recordingStream.current = null;
+      recorder.current = null;
+      changeRecordingPhase("idle");
       setBusy(false);
       setError(caught instanceof Error ? caught.message : "Microphone unavailable");
     }
@@ -448,7 +498,12 @@ export function App() {
         </div>
       ) : null}
       <div className="workspace">
-        <TranscriptPanel session={session} busy={busy} onRecord={beginRecording} />
+        <TranscriptPanel
+          session={session}
+          busy={busy}
+          recordingPhase={recordingPhase}
+          onRecord={() => void toggleRecording()}
+        />
         <SuggestionsPanel session={session} />
         <ConsultPanel
           session={session}

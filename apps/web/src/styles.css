@@ -274,7 +274,16 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 
 .talk-button strong { font-size: 19px; }
 .talk-button > span:last-child { color: var(--muted); font-size: 13px; }
-.talk-button.recording { background: var(--teal-soft); }
+.talk-button.recording {
+  background: var(--teal-soft);
+  border-color: #b42318;
+  color: #b42318;
+}
+
+.talk-button.recording .mic-orbit {
+  background: #b42318;
+  box-shadow: 0 0 0 7px #fee4e2, 0 0 0 8px #fda29b;
+}
 
 .mic-orbit {
   width: 70px;
