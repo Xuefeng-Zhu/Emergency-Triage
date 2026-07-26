@@ -38,11 +38,18 @@
   padding: 20px 18px;
 }
 
-.presentation-toggle {
+.page-toggles {
   position: fixed;
   top: 24px;
   right: 32px;
   z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.presentation-toggle {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -115,6 +122,44 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+}
+
+.compose-row {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.compose-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: var(--mono);
+  font-size: calc(10px * var(--font-scale));
+}
+
+.compose-btn {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #f6f6f7;
+  font-size: calc(10px * var(--font-scale));
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.compose-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.live-error {
+  margin: 4px 0 0;
+  font-size: calc(9px * var(--font-scale));
+  color: var(--danger);
 }
 
 .hl-patient,
@@ -435,6 +480,18 @@
   color: var(--node-question);
   border: 1px solid var(--node-question);
   align-self: flex-start;
+}
+
+.badge-denied {
+  background: rgba(199, 160, 12, 0.14);
+  color: #8a6f08;
+  border: 1px solid #c7a00c;
+}
+
+.badge-refused {
+  background: rgba(209, 53, 43, 0.14);
+  color: var(--danger);
+  border: 1px solid var(--danger);
 }
 
 .citation {
