@@ -9,7 +9,7 @@ if [[ ! -d .venv ]]; then
 fi
 
 .venv/bin/python -m pip install -e 'apps/api[dev]'
-pnpm install
+npm --prefix frontend install
 
 cleanup() {
   kill "${api_pid:-}" "${web_pid:-}" 2>/dev/null || true
@@ -22,7 +22,7 @@ trap cleanup EXIT INT TERM
   --port 8787 &
 api_pid=$!
 
-pnpm run dev:web &
+npm --prefix frontend run dev &
 web_pid=$!
 
 wait -n "$api_pid" "$web_pid"

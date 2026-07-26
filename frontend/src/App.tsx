@@ -1,7 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
-import { createSession, decideProposal, getSession, requestConsult, sendUtterance } from './api'
-import type { Proposal, Session } from './types'
+import {
+  createSession,
+  decideProposal,
+  getHealth,
+  getSession,
+  requestConsult,
+  sendUtterance,
+  sendUtteranceAudio,
+  transcribeAudio,
+} from './api'
+import type { Proposal, Question, Session } from './types'
 
 type NodeType = 'patient' | 'observation' | 'question' | 'diagnosis'
 type Answer = 'yes' | 'no' | 'pending'
@@ -103,6 +112,10 @@ const NURSES: Nurse[] = [
   { id: 'rn-morgan', name: 'A. Morgan' },
 ]
 
+type Speaker = 'nurse' | 'patient'
+type InputMode = 'mic' | 'type'
+type RecordingPhase = 'idle' | 'starting' | 'recording' | 'processing'
+
 type LiveState = {
   session: Session | null
   loading: boolean
@@ -112,8 +125,13 @@ type LiveState = {
 type ScreenProps = {
   testDataMode: boolean
   live: LiveState
-  nurse: Nurse
-  onSendUtterance: (text: string, speaker: 'nurse' | 'patient') => void
+  nurseIndex: number
+  onNurseChange: (index: number) => void
+  inputMode: InputMode
+  onInputModeChange: (mode: InputMode) => void
+  pathwayHistory: string[]
+  onSendUtterance: (text: string, speaker: Speaker) => void
+  onSendAudio: (blob: Blob, speaker: Speaker) => Promise<void>
   onRunConsult: () => void
   onDecision: (proposalId: string, decision: 'approve' | 'deny') => void
 }
@@ -122,7 +140,7 @@ function sessionLabel(session: Session | null): string {
   return session ? session.session_id.slice(-8).toUpperCase() : 'Starting…'
 }
 
-function SessionInfoBar({ testDataMode, live, nurse }: ScreenProps) {
+function SessionInfoBar({ testDataMode, live, nurseIndex, onNurseChange }: ScreenProps) {
   if (testDataMode) {
     return (
       <section className="panel session-info">
@@ -133,27 +151,266 @@ function SessionInfoBar({ testDataMode, live, nurse }: ScreenProps) {
   return (
     <section className="panel session-info">
       <span>
-        SESSION #{sessionLabel(live.session)} · NURSE {nurse.name}
+        SESSION #{sessionLabel(live.session)}
         {live.session ? ` · ${new Date(live.session.started_at).toLocaleTimeString()}` : ''}
+        {' · NURSE'}
       </span>
+      <select
+        className="nurse-select"
+        aria-label="Nurse identity"
+        value={nurseIndex}
+        onChange={(e) => onNurseChange(Number(e.target.value))}
+      >
+        {NURSES.map((nurse, index) => (
+          <option key={nurse.id} value={index}>
+            {nurse.name}
+          </option>
+        ))}
+      </select>
     </section>
   )
 }
 
-function LiveVisitScreen(props: ScreenProps) {
-  const { testDataMode, live, onSendUtterance } = props
-  const [draft, setDraft] = useState('')
+// ---- Live suggestion graph: built from real session data ----
 
-  const send = (speaker: 'nurse' | 'patient') => {
+// "chest_pain.initial" → ["chest pain", "initial"]
+function pathwayLines(node: string): string[] {
+  return node
+    .split('.')
+    .map((part) => part.replaceAll('_', ' '))
+    .slice(0, 2)
+}
+
+function LiveSuggestionGraph({
+  pathwayHistory,
+  questions,
+}: {
+  pathwayHistory: string[]
+  questions: Question[]
+}) {
+  const centerX = 125
+  const levelGap = 78
+  const patientY = 34
+  const history = pathwayHistory.length > 0 ? pathwayHistory : ['intake']
+
+  const pathNodes = history.map((node, i) => ({
+    id: `path-${i}`,
+    node,
+    x: centerX,
+    y: patientY + (i + 1) * levelGap,
+  }))
+  const current = pathNodes[pathNodes.length - 1]
+  const questionY = current.y + levelGap
+  const questionNodes = questions.map((q, i) => ({
+    id: q.id,
+    x: centerX + (i - (questions.length - 1) / 2) * 72,
+    y: questionY,
+  }))
+  const height = (questions.length > 0 ? questionY : current.y) + 40
+
+  return (
+    <>
+      <svg
+        className="graph live-graph"
+        viewBox={`0 0 250 ${height}`}
+        style={{ height: `${height * 1.15}px` }}
+        preserveAspectRatio="xMidYMin meet"
+        role="img"
+        aria-label="Live suggestion graph"
+      >
+        {pathNodes.map((node, i) => (
+          <line
+            key={`edge-${node.id}`}
+            className="edge"
+            x1={centerX}
+            y1={i === 0 ? patientY : pathNodes[i - 1].y}
+            x2={node.x}
+            y2={node.y}
+          />
+        ))}
+        {questionNodes.map((node) => (
+          <line
+            key={`edge-${node.id}`}
+            className="edge answer-pending"
+            x1={current.x}
+            y1={current.y}
+            x2={node.x}
+            y2={node.y}
+          />
+        ))}
+
+        <g className="node patient">
+          <circle cx={centerX} cy={patientY} r={26} />
+          <text x={centerX} y={patientY + 3}>Patient</text>
+        </g>
+        {pathNodes.map((node) => {
+          const lines = pathwayLines(node.node)
+          const lineOffset = (lines.length - 1) * 5
+          return (
+            <g key={node.id} className="node observation">
+              <circle cx={node.x} cy={node.y} r={24} />
+              {lines.map((text, i) => (
+                <text key={i} x={node.x} y={node.y - lineOffset + i * 10 + 3}>
+                  {text}
+                </text>
+              ))}
+            </g>
+          )
+        })}
+        {questionNodes.map((node, i) => (
+          <g key={node.id} className="node question">
+            <circle cx={node.x} cy={node.y} r={18} />
+            <text x={node.x} y={node.y + 3}>Q{i + 1}</text>
+          </g>
+        ))}
+      </svg>
+      {questions.length > 0 && (
+        <ul className="graph-qlist">
+          {questions.map((q, i) => (
+            <li key={q.id}>
+              <strong>Q{i + 1}</strong> {q.text}
+              <br />
+              <span className="citation">{q.rationale}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+function LiveVisitScreen(props: ScreenProps) {
+  const { testDataMode, live, inputMode, onInputModeChange, onSendUtterance, onSendAudio, onRunConsult } = props
+  const [draft, setDraft] = useState('')
+  const [micSpeaker, setMicSpeaker] = useState<Speaker>('patient')
+  const [phase, setPhase] = useState<RecordingPhase>('idle')
+  const [micError, setMicError] = useState<string | null>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+
+  // Stop the mic if the user navigates away mid-recording.
+  useEffect(() => {
+    return () => {
+      const recorder = recorderRef.current
+      if (recorder) {
+        recorder.onstop = null
+        if (recorder.state === 'recording') recorder.stop()
+      }
+      streamRef.current?.getTracks().forEach((track) => track.stop())
+    }
+  }, [])
+
+  const send = (speaker: Speaker) => {
     if (!draft.trim()) return
     onSendUtterance(draft, speaker)
     setDraft('')
   }
 
+  const toggleRecording = async (speaker: Speaker) => {
+    if (phase === 'recording') {
+      if (recorderRef.current?.state === 'recording') recorderRef.current.stop()
+      return
+    }
+    if (phase !== 'idle') return
+
+    setPhase('starting')
+    setMicError(null)
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        throw new Error('This browser does not support microphone recording.')
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      streamRef.current = stream
+      chunksRef.current = []
+      recorderRef.current = recorder
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data)
+      }
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop())
+        recorderRef.current = null
+        streamRef.current = null
+        setPhase('processing')
+        try {
+          const blob = new Blob(chunksRef.current, {
+            type: recorder.mimeType || 'audio/webm',
+          })
+          await onSendAudio(blob, speaker)
+        } finally {
+          setPhase('idle')
+        }
+      }
+      recorder.start()
+      setPhase('recording')
+    } catch (error) {
+      streamRef.current?.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+      recorderRef.current = null
+      setPhase('idle')
+      setMicError((error as Error).message)
+    }
+  }
+
+  const recordHint = {
+    idle: 'Tap to record',
+    starting: 'Starting microphone…',
+    recording: 'Recording — tap to stop',
+    processing: 'Transcribing locally…',
+  }[phase]
+
   return (
     <div className="live-visit-grid">
       <div className="record-row">
-        <button className="record-button" aria-label="Record" />
+        {testDataMode ? (
+          <button className="record-button" aria-label="Record" />
+        ) : (
+          <>
+            <div className="mode-switch" role="group" aria-label="Input mode">
+              <button
+                className={`mode-btn${inputMode === 'mic' ? ' active' : ''}`}
+                onClick={() => onInputModeChange('mic')}
+              >
+                Mic
+              </button>
+              <button
+                className={`mode-btn${inputMode === 'type' ? ' active' : ''}`}
+                onClick={() => onInputModeChange('type')}
+              >
+                Type
+              </button>
+            </div>
+            {inputMode === 'mic' && (
+              <div className="mic-controls">
+                <div className="mode-switch" role="group" aria-label="Speaker">
+                  <button
+                    className={`mode-btn${micSpeaker === 'patient' ? ' active' : ''}`}
+                    disabled={phase === 'recording'}
+                    onClick={() => setMicSpeaker('patient')}
+                  >
+                    Patient
+                  </button>
+                  <button
+                    className={`mode-btn${micSpeaker === 'nurse' ? ' active' : ''}`}
+                    disabled={phase === 'recording'}
+                    onClick={() => setMicSpeaker('nurse')}
+                  >
+                    Nurse
+                  </button>
+                </div>
+                <button
+                  className={`record-button live ${phase}`}
+                  aria-label={recordHint}
+                  aria-pressed={phase === 'recording'}
+                  disabled={phase === 'starting' || phase === 'processing'}
+                  onClick={() => void toggleRecording(micSpeaker)}
+                />
+                <span className="record-hint">{recordHint}</span>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <SessionInfoBar {...props} />
@@ -199,30 +456,34 @@ function LiveVisitScreen(props: ScreenProps) {
                 <p className="line">No utterances yet — send one below.</p>
               )}
             </div>
-            <div className="compose-row">
-              <input
-                type="text"
-                className="compose-input"
-                placeholder="Type what's said (echo STT mode)…"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-              />
-              <button
-                className="compose-btn"
-                disabled={!draft.trim() || live.loading}
-                onClick={() => send('patient')}
-              >
-                Patient
-              </button>
-              <button
-                className="compose-btn"
-                disabled={!draft.trim() || live.loading}
-                onClick={() => send('nurse')}
-              >
-                Nurse
-              </button>
-            </div>
-            {live.error && <p className="live-error">{live.error}</p>}
+            {inputMode === 'type' && (
+              <div className="compose-row">
+                <input
+                  type="text"
+                  className="compose-input"
+                  placeholder="Type what's said (echo STT mode)…"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                />
+                <button
+                  className="compose-btn"
+                  disabled={!draft.trim() || live.loading}
+                  onClick={() => send('patient')}
+                >
+                  Patient
+                </button>
+                <button
+                  className="compose-btn"
+                  disabled={!draft.trim() || live.loading}
+                  onClick={() => send('nurse')}
+                >
+                  Nurse
+                </button>
+              </div>
+            )}
+            {(micError ?? live.error) && (
+              <p className="live-error">{micError ?? live.error}</p>
+            )}
           </>
         )}
       </section>
@@ -248,15 +509,27 @@ function LiveVisitScreen(props: ScreenProps) {
           )}
         </div>
         <div className="selection-buttons">
-          <button className="sel-btn check" aria-label="Approve">
-            &#10003;
-          </button>
-          <button className="sel-btn neutral" aria-label="Neutral">
-            &#9675;
-          </button>
-          <button className="sel-btn deny" aria-label="Deny">
-            &#10005;
-          </button>
+          {testDataMode ? (
+            <>
+              <button className="sel-btn check" aria-label="Approve">
+                &#10003;
+              </button>
+              <button className="sel-btn neutral" aria-label="Neutral">
+                &#9675;
+              </button>
+              <button className="sel-btn deny" aria-label="Deny">
+                &#10005;
+              </button>
+            </>
+          ) : (
+            <button
+              className="sel-btn consult"
+              disabled={live.loading || !live.session}
+              onClick={onRunConsult}
+            >
+              Run Consult
+            </button>
+          )}
         </div>
       </section>
 
@@ -278,18 +551,13 @@ function LiveVisitScreen(props: ScreenProps) {
           </div>
         ) : (
           <div className="graph-scroll">
-            {live.session && live.session.suggestions.questions.length > 0 ? (
-              <ul className="note-list">
-                {live.session.suggestions.questions.map((q) => (
-                  <li key={q.id}>
-                    {q.text}
-                    <br />
-                    <span className="citation">{q.rationale}</span>
-                  </li>
-                ))}
-              </ul>
+            {live.session ? (
+              <LiveSuggestionGraph
+                pathwayHistory={props.pathwayHistory}
+                questions={live.session.suggestions.questions}
+              />
             ) : (
-              <p className="line">No suggestions yet.</p>
+              <p className="line">No session yet.</p>
             )}
           </div>
         )}
@@ -583,19 +851,33 @@ const screens = [LiveVisitScreen, ApprovalScreen, VisitNoteScreen]
 function App() {
   const [screenIndex, setScreenIndex] = useState(0)
   const [presentationMode, setPresentationMode] = useState(false)
-  const [testDataMode, setTestDataMode] = useState(true)
-  const [nurseIndex] = useState(0)
+  const [testDataMode, setTestDataMode] = useState(false)
+  const [inputMode, setInputMode] = useState<InputMode>('type')
+  const [nurseIndex, setNurseIndex] = useState(0)
+  const [pathwayHistory, setPathwayHistory] = useState<string[]>([])
   const [live, setLive] = useState<LiveState>({ session: null, loading: false, error: null })
+  const sttModeRef = useRef<string | null>(null)
+  const initialized = useRef(false)
 
   const nurse = NURSES[nurseIndex]
   const ScreenComponent = screens[screenIndex]
+
+  // Track every pathway node the advisory loop has visited so the live graph
+  // can draw the classification trail, not just the current node.
+  const adoptSession = (session: Session, error: string | null = null) => {
+    setLive({ session, loading: false, error })
+    setPathwayHistory((history) => {
+      const node = session.suggestions.pathway_node
+      return history[history.length - 1] === node ? history : [...history, node]
+    })
+  }
 
   const ensureSession = async (): Promise<Session | null> => {
     if (live.session) return live.session
     setLive((s) => ({ ...s, loading: true, error: null }))
     try {
       const session = await createSession()
-      setLive({ session, loading: false, error: null })
+      adoptSession(session)
       return session
     } catch (error) {
       setLive({ session: null, loading: false, error: (error as Error).message })
@@ -603,18 +885,52 @@ function App() {
     }
   }
 
+  useEffect(() => {
+    if (initialized.current) return
+    initialized.current = true
+    if (!testDataMode) void ensureSession()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleTestDataToggle = (checked: boolean) => {
     setTestDataMode(checked)
     if (!checked) void ensureSession()
   }
 
-  const handleSendUtterance = async (text: string, speaker: 'nurse' | 'patient') => {
+  const handleSendUtterance = async (text: string, speaker: Speaker) => {
     const session = await ensureSession()
     if (!session) return
     setLive((s) => ({ ...s, loading: true, error: null }))
     try {
       const updated = await sendUtterance(session.session_id, text, speaker)
-      setLive({ session: updated, loading: false, error: null })
+      adoptSession(updated)
+    } catch (error) {
+      setLive((s) => ({ ...s, loading: false, error: (error as Error).message }))
+    }
+  }
+
+  // Mic path adapts to the backend's STT mode: live STT takes raw audio on
+  // /utterance; echo/stub STT gets the recording transcribed by the always-on
+  // /whisperx/transcribe endpoint and receives the text instead.
+  const handleSendAudio = async (blob: Blob, speaker: Speaker) => {
+    const session = await ensureSession()
+    if (!session) return
+    setLive((s) => ({ ...s, loading: true, error: null }))
+    try {
+      if (sttModeRef.current === null) {
+        sttModeRef.current = (await getHealth()).stt_mode
+      }
+      let updated: Session
+      if (sttModeRef.current === 'live') {
+        updated = await sendUtteranceAudio(session.session_id, blob, speaker)
+      } else {
+        const result = await transcribeAudio(blob)
+        if (!result.text.trim()) {
+          throw new Error('WhisperX returned an empty transcript.')
+        }
+        updated = await sendUtterance(session.session_id, result.text, speaker)
+      }
+      adoptSession(updated)
     } catch (error) {
       setLive((s) => ({ ...s, loading: false, error: (error as Error).message }))
     }
@@ -626,8 +942,7 @@ function App() {
     setLive((s) => ({ ...s, loading: true, error: null }))
     try {
       await requestConsult(session.session_id)
-      const updated = await getSession(session.session_id)
-      setLive({ session: updated, loading: false, error: null })
+      adoptSession(await getSession(session.session_id))
     } catch (error) {
       setLive((s) => ({ ...s, loading: false, error: (error as Error).message }))
     }
@@ -637,21 +952,31 @@ function App() {
     const session = live.session
     if (!session) return
     setLive((s) => ({ ...s, loading: true, error: null }))
+    let failure: string | null = null
     try {
       await decideProposal(proposalId, decision, { id: nurse.id, name: nurse.name })
     } catch (error) {
-      setLive((s) => ({ ...s, loading: false, error: (error as Error).message }))
-    } finally {
-      const updated = await getSession(session.session_id)
-      setLive({ session: updated, loading: false, error: null })
+      // Keep the message: a 502 here is the egress gate failing closed — the
+      // approval is still audited, but the nurse should see the submit failed.
+      failure = (error as Error).message
+    }
+    try {
+      adoptSession(await getSession(session.session_id), failure)
+    } catch (error) {
+      setLive((s) => ({ ...s, loading: false, error: failure ?? (error as Error).message }))
     }
   }
 
   const screenProps: ScreenProps = {
     testDataMode,
     live,
-    nurse,
+    nurseIndex,
+    onNurseChange: setNurseIndex,
+    inputMode,
+    onInputModeChange: setInputMode,
+    pathwayHistory,
     onSendUtterance: (text, speaker) => void handleSendUtterance(text, speaker),
+    onSendAudio: handleSendAudio,
     onRunConsult: () => void handleRunConsult(),
     onDecision: (proposalId, decision) => void handleDecision(proposalId, decision),
   }
