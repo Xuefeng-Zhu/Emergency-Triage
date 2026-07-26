@@ -13,10 +13,12 @@ const apiProxy = {
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: true, // tablet demo: reachable over the LAN, not just localhost
     port: 5174,
     proxy: apiProxy,
   },
   preview: {
+    host: true,
     port: 4174,
     proxy: apiProxy,
   },
