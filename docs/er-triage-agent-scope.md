@@ -1,6 +1,6 @@
 # ER Triage Agent — Architecture & Lane Split
 
-> Scope contract for the GB10 hackathon build. Three builders, one day.
+> Scope contract for the GB10 hackathon build. Three builders, four lanes, one day.
 > This doc freezes the system shape, the integration seams, and the ownership
 > boundaries. Per-lane implementation detail is drilled down *inside* each lane,
 > not here.
@@ -44,11 +44,15 @@ LAN is the tablet client.
         │  HTTP + WebSocket
         ▼
   FastAPI on GB10  ── owns Session state (in-memory + SQLite journal)
-        ├─ STT endpoint            (local Whisper-class model)
-        ├─ Advisory loop           (pathway state machine + Nemotron)
-        ├─ Consult loop            (retrieval + Nemotron → order proposals)
-        └─ Order egress            ──► OpenShell gate ──► mock LIS/order service
+        ├─ STT endpoint            (local Whisper-class model)          [Lane B]
+        ├─ Inference interface     (§6.2 — transcribe / complete)       [Lane B]
+        ├─ Advisory loop           (pathway state machine)              [Lane C]
+        ├─ Consult loop            (retrieval → proposals, pre-gated)   [Lane C]
+        └─ Order egress            ──► OpenShell gate ──► mock LIS      [Lane C]
 ```
+
+Lane B owns the bottom two GPU-facing rows; Lane C owns the three above them and reaches the
+models only through §6.2. Lane A is the tablet. Lane D is the clock.
 
 The forwarding question ("how does audio get to the agent") resolves to: **it doesn't
 forward.** Same process, function call. Audio posts to an endpoint, the endpoint transcribes,
@@ -96,7 +100,7 @@ nondeterminism; picking the next question is not.
 
 ## 5. Lanes
 
-Three builders, three lanes, one frozen seam between them.
+Three builders, four lanes, two frozen seams. Lane D has no owner by design — see below.
 
 ### Lane A — Client & capture
 Everything above the HTTP boundary.
@@ -111,40 +115,67 @@ Everything above the HTTP boundary.
 
 Builds entirely against stubs from hour one. Should never be blocked on Lane B.
 
-### Lane B — Inference
-Everything that touches a GPU.
+### Lane B — Inference serving
+Everything that touches a GPU. Nothing that touches a prompt.
 
-- Serving both models co-resident on the box (STT + Nemotron).
+- Serving both models co-resident on the box (STT + reasoning model).
 - `/utterance` transcription path.
+- The co-residency memory budget and the sequential-pipeline guarantee (§8.1) — first task
+  of the day, not the last.
+- Exposing inference to Lane C behind the frozen interface in §6.2, including the smaller
+  fallback model the advisory loop may need (§8.2).
+
+Lane B is a thin, deep lane: little surface area, all of it hard. Its deliverable is a stable
+inference interface, not features. Lane B never writes a prompt; Lane C never names a model.
+
+### Lane C — Agent & governance *(Charles)*
+Everything that reasons and everything that governs.
+
 - Advisory loop: pathway node classification + child expansion.
 - Consult loop: retrieval + proposal generation with rationale.
-- The pathway JSON graph itself (authoring it is Lane B's, since the prompt and the graph
-  are co-designed).
-
-First task is the memory budget, not the last. See §8.
-
-### Lane C — Governance & demo *(Charles)*
-The lane with the least code and the most judged surface.
-
+- The pathway JSON graph itself (the prompt and the graph are co-designed, so they live in
+  one lane).
 - OpenShell policy: deny-by-default egress, the declared order envelope.
 - Mock LIS / order-entry service (local, the only permitted egress destination).
 - The approve → egress-permit mint, and the identity-stamped audit record.
-- The fail-closed beat (§9) and the injection beat.
+
+**Why the loops live here.** The envelope check has to run during `POST /consult`, not at
+approval time — Beat 3 requires the imaging proposal to arrive already `refused`, so the
+nurse never had the option to approve it. That puts policy evaluation inside the consult
+response path. It also requires the proposal space to *deliberately* include out-of-envelope
+test codes, so the gate has something legitimate to refuse; a consult prompt narrowed to labs
+for accuracy would delete the money shot. Both of those were cross-lane coordination when the
+loops sat in Lane B. Both are now internal to one lane. That is the point of the split.
+
+**Note on ownership (revised).** Lane C is now the largest code lane *and* the highest-judged
+surface — it is the critical path. The old failure mode was Lane C being quietly deprioritized
+until 3pm. The new one is Lane C's owner being pulled into firefighting A and B while holding
+the critical path. Protect the lane harder, not less: A and B triage their own fires.
+
+### Lane D — Demo planning & convergence *(shared, time-boxed)*
+No owner. A shared lane with a hard clock, because a lane everyone owns is a lane nobody owns
+unless the clock forces it.
+
 - Scripted patient encounters — the actual spoken content of the demo.
+- Beat choreography (§9), including the fail-closed beat and the injection beat.
+- Integration: all three lanes wired end to end on the real box, not against stubs.
 - The pitch and the writeup.
 
-**Note on ownership:** on a three-person team this lane is the one that quietly gets
-deprioritized until 3pm and then determines the score. Assigning it to the person with the
-deepest OpenShell context is correct; the risk is that Lane C's owner gets pulled into
-firefighting A and B. Protect the lane.
+**Time-box (locked).** Feature work in Lanes A, B, and C stops at **T−3h**; from that point
+the entire team is in Lane D. A second checkpoint at **T−1h** is a full dry run, and no code
+changes are permitted after it. Anything not integrated at T−3h is cut, not finished — that
+is the whole function of the checkpoint, and it only works if it is treated as a deadline
+rather than a suggestion.
 
 ---
 
-## 6. The frozen seam
+## 6. The frozen seams
 
-**Write these down and stub every one of them in hour one.** Canned responses behind every
-endpoint before anyone builds the real thing. This is the single highest-leverage 30 minutes
-of the day.
+There are now **two** seams, and both get stubbed in hour one. Canned responses behind every
+endpoint and every function before anyone builds the real thing. This is still the single
+highest-leverage 30 minutes of the day.
+
+### 6.1 External — Lane A ↔ Lane C (HTTP)
 
 ```
 POST /session                          → { session_id, started_at }
@@ -179,6 +210,29 @@ Contract rules:
 - Every state transition writes an audit row. The audit endpoint is not an afterthought; it
   is the evidence the governance claim is real.
 
+### 6.2 Internal — Lane C ↔ Lane B (in-process function calls)
+
+Lane C no longer owns inference; it calls Lane B. This interface is as load-bearing as the
+HTTP contract above and fails the same way if it is not frozen early.
+
+```
+transcribe(audio_bytes)                → { text, duration_ms }
+
+complete(prompt, schema, max_tokens,   → parsed dict conforming to `schema`
+         tier="reason"|"fast")
+```
+
+Contract rules:
+
+- **Synchronous and strictly sequential.** Never concurrent — see §8.1.
+- `schema` is mandatory and Lane B is responsible for returning something that validates
+  against it. Lane C does not parse free text.
+- `tier` is how Lane C asks for the smaller fallback model without naming it. Lane B decides
+  what backs each tier. Lane C must never reference a model name in code or prompt.
+- Lane B ships a **canned stub of both functions in hour one**, returning fixed JSON. Lane C
+  builds the advisory loop, the consult loop, and the whole gate against that stub while Lane
+  B is still fighting the memory budget. Lane C should never be blocked on a GPU.
+
 ---
 
 ## 7. Locked decisions
@@ -191,6 +245,9 @@ Contract rules:
 | Transport | Same-process function calls | No hop between STT and agent. Simplest thing that demos. |
 | Model pipeline | **Sequential, never parallel** | Co-residency on 128 GB unified; see §8. |
 | Lane C owner | Charles | Deepest OpenShell context; highest judged surface. |
+| Loop ownership | **Lane C, not Lane B** | The envelope pre-check sits in the consult response path; keeping the loops and the gate in one lane makes that ordering internal instead of a cross-lane negotiation. See §5. |
+| Lane B/C boundary | Inference interface, not features | Lane C never names a model; Lane B never writes a prompt. |
+| Lane D | **Shared, hard stop at T−3h** | Convergence has no owner, so it needs a clock instead. Nothing integrates itself at the last minute. |
 
 ---
 
@@ -203,25 +260,42 @@ pipeline must be **strictly sequential** — transcribe, release, reason — bec
 concurrent calls will OOM. Measure this before building anything on top of it; do not trust
 arithmetic.
 
-### 8.2 Advisory latency
+### 8.2 Advisory latency *(Lane C, needs a Lane B dependency early)*
 The advisory loop fires on every utterance and the nurse is mid-conversation. If it takes
 more than a few seconds it stops being useful and starts being a distraction on screen.
 Mitigations, in order of preference: keep the classification prompt short and the output
-schema tiny; use the smaller fallback model for the advisory loop and reserve Nemotron for
+schema tiny; route the advisory loop to the `fast` tier and reserve the reasoning model for
 consult; debounce so a rapid sequence of utterances only triggers one classification.
 
-### 8.3 The seam slipping
-If the contracts in §6 are not frozen and stubbed in hour one, Lane A blocks on Lane B by
-mid-morning and the day is lost. This is a process risk, not a technical one, and it is the
-most likely single cause of failure.
+The middle mitigation is now **cross-lane** — Lane C can only ask for `tier="fast"` if Lane B
+has actually stood a second, smaller model up behind it. Make that request in the morning. It
+is worthless discovered at T−4h, because by then Lane B has no room in the memory budget to
+add a model.
 
-### 8.4 Lane C erosion
-See §5. The governance lane has the least visible progress during the build and the most
-weight in the score.
+### 8.3 A seam slipping
+Two seams now, and either one loses the day. If §6.1 is not stubbed, Lane A blocks on Lane C
+by mid-morning. If §6.2 is not stubbed, Lane C blocks on the GPU — which means the critical
+path blocks on the hardest, least predictable task in the build. §6.2 is the more dangerous of
+the two for exactly that reason. Both are process risks, not technical ones, and together they
+remain the most likely single cause of failure.
+
+### 8.4 Lane C is the critical path
+The restructure concentrated the reasoning *and* the governance in one lane held by one
+person. Lane A can degrade gracefully (stubs, rougher UI) and Lane B can degrade to a slower
+model, but there is no degraded version of Lane C that still demos — no loops means no
+proposals, and no gate means no story. Two implications: Lane C's owner does not take
+firefighting duty for A or B, and if Lane C slips, the cut is *pathway breadth* (drop to one
+chief complaint) rather than anything in the governance path.
+
+### 8.5 Lane D belongs to nobody
+A shared lane is unowned until the clock makes it everyone's. The failure mode is three
+builders each assuming another is writing the script, and a demo assembled in the last
+twenty minutes. The T−3h checkpoint is the only mitigation, and it works only if someone
+calls it out loud when the time arrives.
 
 ---
 
-## 9. Demo beats
+## 9. Demo beats *(Lane D)*
 
 **Beat 1 — Capture (30s).** Nurse holds the button, describes a chest-pain presentation.
 Transcript appears. Suggestion pane updates with the pathway's next questions. Narrate: this
@@ -243,6 +317,14 @@ comes back `refused`. The nurse never had the option to approve it. Show the aud
 egress. Blocked at L7, logged. Keep this as the second beat, not the first — it is the more
 familiar demo and lands harder after Beat 3 has established that the gate constrains normal
 operation too.
+
+> **Open — Lane D must resolve this before the script is written.** As the architecture stands,
+> the agent has no network capability at all; its only egress is the order path to the local
+> mock. So an injection in the transcript can do exactly one thing — induce an out-of-envelope
+> proposal — which is Beat 3 again, and "blocked at L7" has nothing to block. Either give the
+> agent a nominally legitimate outbound capability the policy denies (e.g. a "fetch prior
+> records" call), which makes the beat real, or cut Beat 4. Showing the same wall twice and
+> calling the second one an attack is worse than not showing it.
 
 ---
 
