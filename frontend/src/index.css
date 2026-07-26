@@ -1,0 +1,50 @@
+:root {
+  --bg: #ffffff;
+  --tablet-bezel: #1c1c1e;
+  --screen-bg: #ffffff;
+  --border: #d9d9dd;
+  --text: #3a3a3e;
+  --text-h: #08060d;
+  --placeholder: #e5e4e7;
+  --accent: #0a6e6e;
+  --danger: #d1352b;
+  --mono: 'Consolas', 'SF Mono', 'Segoe UI Mono', ui-monospace, monospace;
+
+  --node-patient: #1d4ed8;
+  --node-patient-bg: rgba(29, 78, 216, 0.12);
+  --node-observation: #0f9488;
+  --node-observation-bg: rgba(15, 148, 136, 0.12);
+  --node-question: #7c3aed;
+  --node-question-bg: rgba(124, 58, 237, 0.12);
+  --node-diagnosis: #d97706;
+  --node-diagnosis-bg: rgba(217, 119, 6, 0.12);
+
+  font: 16px/145% var(--mono);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  background: var(--bg);
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-h);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+#root {
+  min-height: 100svh;
+}
