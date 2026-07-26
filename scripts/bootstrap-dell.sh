@@ -8,7 +8,7 @@ if [[ "$(uname -m)" != "aarch64" ]]; then
   echo "Warning: this bootstrap was validated for the Dell GB10 ARM64 host." >&2
 fi
 
-for command in docker ffmpeg python3; do
+for command in ffmpeg python3; do
   command -v "$command" >/dev/null || {
     echo "Missing prerequisite: $command" >&2
     exit 1
@@ -38,7 +38,6 @@ if [[ "$(uname -m)" == "aarch64" ]]; then
     torch torchaudio torchvision torchcodec
   UV_HTTP_TIMEOUT="${UV_HTTP_TIMEOUT:-3600}" uv pip install \
     --python .venv/bin/python \
-    "ctranslate2>=4.5.0,<5" \
     "faster-whisper>=1.2.0,<2" \
     "huggingface-hub>=0.28.1" \
     "nltk>=3.9.1" \
@@ -50,6 +49,7 @@ if [[ "$(uname -m)" == "aarch64" ]]; then
     nvidia-cublas-cu12 \
     "nvidia-cudnn-cu12>=9,<10"
   uv pip install --python .venv/bin/python --no-deps "whisperx==3.8.6"
+  scripts/install-ctranslate2-gb10.sh
 else
   uv pip install --python .venv/bin/python -e 'apps/api[stt]'
 fi
@@ -65,3 +65,4 @@ pnpm run build
 
 mkdir -p data
 echo "Native application dependencies installed. No app containers were created."
+echo "NemoClaw/OpenShell has its own supported Docker prerequisite when enabled."

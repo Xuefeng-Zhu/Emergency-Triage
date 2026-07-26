@@ -25,9 +25,10 @@ scripts/bootstrap-dell.sh
 ```
 
 On ARM64, the bootstrap deliberately installs the CUDA 13 PyTorch wheels before
-WhisperX. It also installs the CUDA 12 cuBLAS/cuDNN compatibility libraries used
-by the current prebuilt CTranslate2 wheel; do not replace this with a plain
-`pip install whisperx`, which resolves a CPU-oriented PyTorch build on ARM64.
+WhisperX. It also installs CUDA 12 cuBLAS/cuDNN compatibility libraries, then
+builds CTranslate2 4.8.1 from source for the GB10's compute capability 12.1.
+The published ARM64 CTranslate2 wheel is CPU-only, so do not replace this with a
+plain `pip install whisperx`.
 
 Install NemoClaw only after reviewing its third-party notice:
 
@@ -41,6 +42,9 @@ nemoclaw emergency-trial-agent policy-add \
 The script selects the validated managed-vLLM model recipe for a GB10-class
 Spark system and the restricted NemoClaw policy tier. It does not enable web
 search, messaging, or external MCP integrations.
+
+The API, WhisperX, and UI run directly on Ubuntu and do not use Docker.
+NemoClaw/OpenShell itself still requires Docker on its supported Linux path.
 
 Copy `agent/AGENTS.md` into the sandbox workspace:
 
