@@ -64,14 +64,16 @@ curl -fsS http://127.0.0.1:8787/healthz
 
 The live acceptance path is:
 
-1. Create a session from the tablet.
-2. Hold to talk, release, and confirm WhisperX returns text.
-3. Confirm suggestions update from the JSON pathway.
-4. Request a consult and verify an out-of-envelope imaging proposal is already
+1. Open the live WhisperX console and confirm three-second microphone chunks
+   append to the transcript while speaking.
+2. Create a session from the tablet.
+3. Hold to talk, release, and confirm WhisperX returns text.
+4. Confirm suggestions update from the JSON pathway.
+5. Request a consult and verify an out-of-envelope imaging proposal is already
    `refused`.
-5. Approve the allowed lab proposal and verify a `submitted` audit row and mock
+6. Approve the allowed lab proposal and verify a `submitted` audit row and mock
    LIS reference.
-6. From the sandbox, try any undeclared destination and confirm OpenShell denies
+7. From the sandbox, try any undeclared destination and confirm OpenShell denies
    it.
 
 ## Systemd
@@ -85,3 +87,15 @@ sudo systemctl enable --now emergency-trial-api emergency-trial-web
 ```
 
 The tablet URL is `http://172.16.10.137:4173`.
+
+Browsers allow microphone capture only from a secure context. For a quick
+private-network test without adding TLS, tunnel the web service and use the
+browser's trusted `localhost` origin:
+
+```bash
+ssh -N -L 4173:127.0.0.1:4173 dell@172.16.10.137
+```
+
+Then open `http://localhost:4173/whisperx`, select **Start listening**, and grant
+microphone access. The console sends ordered three-second WAV chunks to the
+local API and appends non-empty WhisperX results as they finish.

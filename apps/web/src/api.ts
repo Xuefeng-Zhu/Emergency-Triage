@@ -1,4 +1,10 @@
-import type { Proposal, Session, Utterance } from "./types";
+import type {
+  Proposal,
+  Session,
+  Utterance,
+  WhisperXResult,
+  WhisperXStatus,
+} from "./types";
 
 const API = import.meta.env.VITE_API_BASE ?? "/api";
 
@@ -31,6 +37,22 @@ export async function sendUtterance(
   form.append("audio", blob, "utterance.webm");
   form.append("speaker", speaker);
   return request(`/session/${sessionId}/utterance`, {
+    method: "POST",
+    body: form,
+  });
+}
+
+export function getWhisperXStatus(): Promise<WhisperXStatus> {
+  return request("/whisperx/status");
+}
+
+export function transcribeWithWhisperX(
+  blob: Blob,
+  filename = "sample.webm",
+): Promise<WhisperXResult> {
+  const form = new FormData();
+  form.append("audio", blob, filename);
+  return request("/whisperx/transcribe", {
     method: "POST",
     body: form,
   });

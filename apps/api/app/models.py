@@ -30,6 +30,14 @@ class Utterance(BaseModel):
     duration_ms: int = 0
 
 
+class TranscriptionResponse(BaseModel):
+    text: str
+    duration_ms: int
+    processing_ms: int
+    model: str
+    device: str
+
+
 class Question(BaseModel):
     id: str
     text: str

@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
+from time import perf_counter
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .governance import OrderSubmitter
-from .inference import build_inference
+from .inference import WhisperXTranscriber, build_inference
 from .models import (
     AuditEntry,
     ConsultResponse,
@@ -15,6 +17,7 @@ from .models import (
     MockOrderResponse,
     SessionCreated,
     Suggestions,
+    TranscriptionResponse,
     TriageSession,
     Utterance,
 )
@@ -28,11 +31,17 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     repository = SessionRepository(settings.triage_database_path)
     transcriber, completion = build_inference(settings)
+    whisperx_transcriber = (
+        transcriber
+        if isinstance(transcriber, WhisperXTranscriber)
+        else WhisperXTranscriber(settings)
+    )
     submitter = OrderSubmitter(settings)
     app.state.service = TriageService(
         repository, transcriber, completion, submitter
     )
     app.state.submitter = submitter
+    app.state.whisperx_transcriber = whisperx_transcriber
     yield
 
 
@@ -62,6 +71,35 @@ def health() -> dict:
         "local_processing": True,
         "egress_default": "deny",
     }
+
+
+@app.get("/whisperx/status")
+def whisperx_status() -> dict:
+    return {
+        "model": settings.whisperx_model,
+        "device": settings.whisperx_device,
+        "compute_type": settings.whisperx_compute_type,
+        "language": settings.whisperx_language,
+        "loaded": app.state.whisperx_transcriber._model is not None,
+    }
+
+
+@app.post("/whisperx/transcribe", response_model=TranscriptionResponse)
+async def transcribe_audio(audio: UploadFile = File(...)) -> TranscriptionResponse:
+    audio_bytes = await audio.read()
+    suffix = Path(audio.filename or "sample.webm").suffix
+    started_at = perf_counter()
+    try:
+        result = await app.state.whisperx_transcriber.transcribe(audio_bytes, suffix)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return TranscriptionResponse(
+        text=result["text"],
+        duration_ms=result["duration_ms"],
+        processing_ms=round((perf_counter() - started_at) * 1000),
+        model=settings.whisperx_model,
+        device=settings.whisperx_device,
+    )
 
 
 @app.post("/session", response_model=SessionCreated)
