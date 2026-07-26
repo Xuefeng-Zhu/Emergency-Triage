@@ -140,7 +140,7 @@ Everything that reasons and everything that governs.
 - The approve → egress-permit mint, and the identity-stamped audit record.
 
 **Why the loops live here.** The envelope check has to run during `POST /consult`, not at
-approval time — Beat 3 requires the imaging proposal to arrive already `refused`, so the
+approval time — an out-of-envelope proposal must arrive already `refused`, so the
 nurse never had the option to approve it. That puts policy evaluation inside the consult
 response path. It also requires the proposal space to *deliberately* include out-of-envelope
 test codes, so the gate has something legitimate to refuse; a consult prompt narrowed to labs
@@ -157,7 +157,7 @@ No owner. A shared lane with a hard clock, because a lane everyone owns is a lan
 unless the clock forces it.
 
 - Scripted patient encounters — the actual spoken content of the demo.
-- Beat choreography (§9), including the fail-closed beat and the injection beat.
+- Beat choreography (§9) — selected late, from what is actually integrated.
 - Integration: all three lanes wired end to end on the real box, not against stubs.
 - The pitch and the writeup.
 
@@ -304,27 +304,12 @@ audio is PHI from the instant it exists, and it has not left the box.
 **Beat 2 — Consult (45s).** Nurse asks for a recommendation. Agent returns three test
 proposals with rationale and citation. They appear as cards — proposed, not ordered.
 
-**Beat 3 — The gate (45s).** Nurse approves two. Each approval mints a narrow, identity-
-stamped permit and the order request goes to the local order service. The third proposal is
-**outside the declared envelope** — an imaging order where policy permits only labs — and it
-comes back `refused`. The nurse never had the option to approve it. Show the audit line.
-
-> This is the strongest available fail-closed beat because it shows the constraint operating
-> on the agent's *legitimate* output, not on an obvious attack. The agent was not
-> compromised; it proposed something reasonable; the envelope refused it anyway.
-
-**Beat 4 — Injection (30s, pocket).** Something in the patient's speech attempts to redirect
-egress. Blocked at L7, logged. Keep this as the second beat, not the first — it is the more
-familiar demo and lands harder after Beat 3 has established that the gate constrains normal
-operation too.
-
-> **Open — Lane D must resolve this before the script is written.** As the architecture stands,
-> the agent has no network capability at all; its only egress is the order path to the local
-> mock. So an injection in the transcript can do exactly one thing — induce an out-of-envelope
-> proposal — which is Beat 3 again, and "blocked at L7" has nothing to block. Either give the
-> agent a nominally legitimate outbound capability the policy denies (e.g. a "fetch prior
-> records" call), which makes the beat real, or cut Beat 4. Showing the same wall twice and
-> calling the second one an attack is worse than not showing it.
+> **The rest of the beats are deliberately unspecified.** The remaining choreography — how the
+> fail-closed story gets shown, and whether an injection beat exists at all — will be
+> determined closer to demo time, subject to what is actually working on the box. Locking a
+> script now to capabilities that may not land is the failure mode; Lane D picks the beats from
+> what integrates by the T−3h checkpoint. The architecture above does not depend on which
+> beats get chosen.
 
 ---
 

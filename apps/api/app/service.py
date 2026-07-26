@@ -15,23 +15,24 @@ from .models import (
     TriageSession,
     Utterance,
 )
-from .pathways import questions_for
+from .pathways import (
+    consult_hint_for,
+    node_catalog,
+    node_ids,
+    questions_for,
+    reference_slice,
+)
 from .repository import SessionRepository
 
-CLASSIFICATION_SCHEMA = {
-    "type": "object",
-    "required": ["pathway_node"],
-    "properties": {
-        "pathway_node": {
-            "enum": [
-                "intake",
-                "chest_pain.initial",
-                "shortness_of_breath.initial",
-                "abdominal_pain.initial",
-            ]
-        }
-    },
-}
+
+def classification_schema() -> dict:
+    """Closed label set derived from the pathway file so the two never drift."""
+    return {
+        "type": "object",
+        "required": ["pathway_node"],
+        "properties": {"pathway_node": {"enum": node_ids()}},
+    }
+
 
 CONSULT_SCHEMA = {
     "type": "object",
@@ -47,6 +48,12 @@ CONSULT_SCHEMA = {
                     "rationale",
                     "citation",
                 ],
+                "properties": {
+                    "test_code": {"type": "string"},
+                    "label": {"type": "string"},
+                    "rationale": {"type": "string"},
+                    "citation": {"type": "string"},
+                },
             },
         }
     },
@@ -101,10 +108,13 @@ class TriageService:
         )
         classification = await self.completion.complete(
             (
-                "Map this transcript to exactly one pathway node. Do not diagnose. "
+                "Map this transcript to exactly one pathway node from the catalog "
+                "below. Choose the deepest node the transcript clearly supports; "
+                "choose `intake` if no complaint is established. Do not diagnose.\n\n"
+                f"Pathway nodes:\n{node_catalog()}\n\n"
                 f"Transcript:\n{transcript}"
             ),
-            CLASSIFICATION_SCHEMA,
+            classification_schema(),
             "fast",
         )
         session.suggestions = questions_for(
@@ -118,11 +128,28 @@ class TriageService:
         transcript = "\n".join(
             f"{item.speaker}: {item.text}" for item in session.transcript
         )
+        hint = consult_hint_for(session.suggestions.pathway_node)
+        if hint:
+            grounding = (
+                "Ground every proposal in the local reference below. `citation` "
+                f"must name a section of it, e.g. `{hint} §2`. Do not cite "
+                "anything not present in the reference.\n\n"
+                f"Local reference:\n{reference_slice(hint)}"
+            )
+        else:
+            grounding = (
+                "No triage pathway has been established for this encounter and no "
+                "local reference is available, so there is nothing to cite. "
+                "Return an empty proposals list."
+            )
         result = await self.completion.complete(
             (
-                "Generate diagnostic test proposals with rationale and a local reference "
-                "citation. Include clinically plausible proposals even when they may be "
-                "outside the permitted order envelope; policy evaluation happens next. "
+                "Propose diagnostic tests for the nurse to consider, each with a "
+                "rationale and a local reference citation. Include clinically "
+                "plausible proposals even when they may be outside the permitted "
+                "order envelope; policy evaluation happens next. The nurse decides; "
+                "never phrase a proposal as a directive or diagnosis.\n\n"
+                f"{grounding}\n\n"
                 f"Transcript:\n{transcript}"
             ),
             CONSULT_SCHEMA,
@@ -165,41 +192,66 @@ class TriageService:
                 detail=f"Proposal is already {proposal.status}",
             )
 
-        order_ref = None
         if request.decision == "deny":
             proposal.status = ProposalStatus.DENIED
-        else:
-            proposal.status = ProposalStatus.APPROVED
+            audit = AuditEntry(
+                actor=request.approver_name,
+                action="deny",
+                proposal_id=proposal_id,
+                outcome=proposal.status,
+            )
+            session.audit.append(audit)
             self.repository.save(session)
-            try:
-                order_ref = await self.submitter.submit(proposal)
-            except Exception as error:
-                proposal.status = ProposalStatus.APPROVED
-                audit = AuditEntry(
-                    actor=request.approver_name,
-                    action="approve",
-                    proposal_id=proposal_id,
-                    outcome="egress_failed",
-                )
-                session.audit.append(audit)
-                self.repository.save(session)
-                raise HTTPException(
-                    status_code=502,
-                    detail="Order egress failed closed; the approval remains recorded.",
-                ) from error
-            proposal.status = ProposalStatus.SUBMITTED
+            return DecisionResponse(
+                proposal_id=proposal_id,
+                status=proposal.status,
+                order_ref=None,
+                audit_id=audit.audit_id,
+            )
 
-        audit = AuditEntry(
+        # Write-ahead audit: the approval row is durable before any order
+        # request leaves the process. An order without an audit line is the
+        # exact failure mode the governance claim forbids.
+        proposal.status = ProposalStatus.APPROVED
+        approve_audit = AuditEntry(
             actor=request.approver_name,
-            action=request.decision,
+            action="approve",
             proposal_id=proposal_id,
             outcome=proposal.status,
         )
-        session.audit.append(audit)
+        session.audit.append(approve_audit)
+        self.repository.save(session)
+
+        try:
+            order_ref = await self.submitter.submit(proposal)
+        except Exception as error:
+            session.audit.append(
+                AuditEntry(
+                    actor="System egress",
+                    action="order_submission",
+                    proposal_id=proposal_id,
+                    outcome="egress_failed",
+                )
+            )
+            self.repository.save(session)
+            raise HTTPException(
+                status_code=502,
+                detail="Order egress failed closed; the approval remains recorded.",
+            ) from error
+
+        proposal.status = ProposalStatus.SUBMITTED
+        session.audit.append(
+            AuditEntry(
+                actor="System egress",
+                action="order_submission",
+                proposal_id=proposal_id,
+                outcome=proposal.status,
+            )
+        )
         self.repository.save(session)
         return DecisionResponse(
             proposal_id=proposal_id,
             status=proposal.status,
             order_ref=order_ref,
-            audit_id=audit.audit_id,
+            audit_id=approve_audit.audit_id,
         )

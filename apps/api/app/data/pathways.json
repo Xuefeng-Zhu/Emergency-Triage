@@ -1,0 +1,290 @@
+{
+  "version": 1,
+  "root": "intake",
+  "nodes": {
+    "intake": {
+      "label": "Intake",
+      "description": "No chief complaint established yet.",
+      "questions": [
+        {
+          "id": "intake.q1",
+          "text": "What brings you in today?",
+          "rationale": "Establishes the chief complaint that selects a triage pathway."
+        },
+        {
+          "id": "intake.q2",
+          "text": "When did this start?",
+          "rationale": "Onset time anchors every downstream time-sensitive consideration."
+        }
+      ],
+      "children": [
+        "chest_pain.initial",
+        "shortness_of_breath.initial",
+        "abdominal_pain.initial"
+      ]
+    },
+
+    "chest_pain.initial": {
+      "label": "Chest pain — onset & character",
+      "description": "Patient reports chest pain, discomfort, tightness, or pressure.",
+      "consult_hint": "chest-pain-general",
+      "questions": [
+        {
+          "id": "cp.q1",
+          "text": "Can you describe the pain — is it pressure, sharp, or burning?",
+          "rationale": "Character helps separate cardiac, pleuritic, and GI presentations."
+        },
+        {
+          "id": "cp.q2",
+          "text": "When exactly did it start, and has it been constant?",
+          "rationale": "Onset and pattern inform urgency and workup timing."
+        },
+        {
+          "id": "cp.q3",
+          "text": "Were you doing anything when it started?",
+          "rationale": "Exertional onset raises concern for a cardiac cause."
+        }
+      ],
+      "children": [
+        "chest_pain.cardiac_features",
+        "chest_pain.pleuritic",
+        "chest_pain.gi_features"
+      ]
+    },
+    "chest_pain.cardiac_features": {
+      "label": "Chest pain — cardiac features",
+      "description": "Pressure-like or exertional pain; assessing radiation and autonomic symptoms.",
+      "consult_hint": "acs",
+      "questions": [
+        {
+          "id": "cp.q4",
+          "text": "Does the pain move to your arm, jaw, neck, or back?",
+          "rationale": "Radiation is associated with cardiac presentations."
+        },
+        {
+          "id": "cp.q5",
+          "text": "Any sweating, nausea, or lightheadedness with it?",
+          "rationale": "Autonomic features often accompany cardiac pain."
+        },
+        {
+          "id": "cp.q6",
+          "text": "Does anything make it better or worse — rest, exertion, position?",
+          "rationale": "Exertional pattern relieved by rest is a classic cardiac feature."
+        }
+      ],
+      "children": ["chest_pain.risk_factors", "chest_pain.red_flags"]
+    },
+    "chest_pain.risk_factors": {
+      "label": "Chest pain — cardiac risk factors",
+      "description": "Cardiac features present; assessing risk factor burden.",
+      "consult_hint": "acs",
+      "questions": [
+        {
+          "id": "cp.q7",
+          "text": "Do you have high blood pressure, diabetes, or high cholesterol?",
+          "rationale": "Risk factor burden informs how strongly to consider a cardiac cause."
+        },
+        {
+          "id": "cp.q8",
+          "text": "Do you smoke, or have you in the past?",
+          "rationale": "Smoking is a major modifiable cardiac risk factor."
+        },
+        {
+          "id": "cp.q9",
+          "text": "Has anyone in your family had a heart attack before age 55?",
+          "rationale": "Early family history raises pre-test probability."
+        }
+      ],
+      "children": ["chest_pain.red_flags", "chest_pain.prior_episodes"]
+    },
+    "chest_pain.prior_episodes": {
+      "label": "Chest pain — prior episodes & history",
+      "description": "Assessing prior similar episodes and known cardiac history.",
+      "consult_hint": "acs",
+      "questions": [
+        {
+          "id": "cp.q10",
+          "text": "Have you ever had pain like this before?",
+          "rationale": "A changed pattern from prior stable symptoms matters."
+        },
+        {
+          "id": "cp.q11",
+          "text": "Have you ever had a heart problem diagnosed, or a stent?",
+          "rationale": "Known coronary disease changes the baseline."
+        }
+      ],
+      "children": ["chest_pain.red_flags"]
+    },
+    "chest_pain.red_flags": {
+      "label": "Chest pain — red flags",
+      "description": "Screening for features that demand escalation regardless of pathway.",
+      "consult_hint": "dissection",
+      "questions": [
+        {
+          "id": "cp.q12",
+          "text": "Did you faint or nearly faint?",
+          "rationale": "Syncope with chest pain is a red-flag combination."
+        },
+        {
+          "id": "cp.q13",
+          "text": "Is the pain tearing or ripping, going through to your back?",
+          "rationale": "Tearing interscapular pain is a classic dissection descriptor."
+        },
+        {
+          "id": "cp.q14",
+          "text": "Is one arm weaker, or is the pain different between sides?",
+          "rationale": "Pulse or strength asymmetry may accompany dissection."
+        }
+      ],
+      "children": []
+    },
+    "chest_pain.pleuritic": {
+      "label": "Chest pain — pleuritic features",
+      "description": "Pain worse with breathing; assessing PE and pneumothorax features.",
+      "consult_hint": "pe",
+      "questions": [
+        {
+          "id": "cp.q15",
+          "text": "Is the pain worse when you breathe in deeply?",
+          "rationale": "Pleuritic pain shifts attention toward PE, pericarditis, or pneumothorax."
+        },
+        {
+          "id": "cp.q16",
+          "text": "Any cough, or have you coughed up blood?",
+          "rationale": "Hemoptysis is associated with pulmonary embolism."
+        },
+        {
+          "id": "cp.q17",
+          "text": "Is one leg swollen or painful?",
+          "rationale": "Unilateral leg swelling suggests a DVT source."
+        }
+      ],
+      "children": ["chest_pain.pe_risk"]
+    },
+    "chest_pain.pe_risk": {
+      "label": "Chest pain — PE risk factors",
+      "description": "Pleuritic features present; assessing thromboembolic risk.",
+      "consult_hint": "pe",
+      "questions": [
+        {
+          "id": "cp.q18",
+          "text": "Any long flights, car trips, surgery, or time laid up recently?",
+          "rationale": "Immobilization is a major provoking factor for VTE."
+        },
+        {
+          "id": "cp.q19",
+          "text": "Have you or your family ever had a blood clot?",
+          "rationale": "Prior VTE or family history raises pre-test probability."
+        },
+        {
+          "id": "cp.q20",
+          "text": "Are you taking hormonal contraception or hormone therapy?",
+          "rationale": "Estrogen-containing therapy increases clot risk."
+        }
+      ],
+      "children": []
+    },
+    "chest_pain.gi_features": {
+      "label": "Chest pain — GI features",
+      "description": "Burning or food-related pain; assessing reflux-pattern features.",
+      "consult_hint": "gi",
+      "questions": [
+        {
+          "id": "cp.q21",
+          "text": "Is it a burning feeling, and does it relate to meals?",
+          "rationale": "Meal-related burning suggests a reflux pattern."
+        },
+        {
+          "id": "cp.q22",
+          "text": "Do antacids help at all?",
+          "rationale": "Antacid response supports a GI pattern but does not exclude cardiac causes."
+        }
+      ],
+      "children": ["chest_pain.risk_factors"]
+    },
+
+    "shortness_of_breath.initial": {
+      "label": "Shortness of breath — onset",
+      "description": "Patient reports difficulty breathing or breathlessness.",
+      "consult_hint": "sob",
+      "questions": [
+        {
+          "id": "sob.q1",
+          "text": "Did the breathlessness come on suddenly or gradually?",
+          "rationale": "Sudden onset points toward PE or pneumothorax; gradual toward cardiac or infective causes."
+        },
+        {
+          "id": "sob.q2",
+          "text": "Is it worse lying flat, or do you wake at night short of breath?",
+          "rationale": "Orthopnea and PND suggest a cardiac contribution."
+        },
+        {
+          "id": "sob.q3",
+          "text": "Any fever or cough with phlegm?",
+          "rationale": "Infective features shift toward pneumonia."
+        }
+      ],
+      "children": ["shortness_of_breath.features"]
+    },
+    "shortness_of_breath.features": {
+      "label": "Shortness of breath — associated features",
+      "description": "Characterizing severity and associated symptoms.",
+      "consult_hint": "sob",
+      "questions": [
+        {
+          "id": "sob.q4",
+          "text": "How far can you walk now compared with a month ago?",
+          "rationale": "Functional change quantifies severity and trajectory."
+        },
+        {
+          "id": "sob.q5",
+          "text": "Any chest pain, leg swelling, or wheeze with it?",
+          "rationale": "Associated features steer between cardiac, embolic, and airway causes."
+        }
+      ],
+      "children": []
+    },
+
+    "abdominal_pain.initial": {
+      "label": "Abdominal pain — location & onset",
+      "description": "Patient reports abdominal pain.",
+      "consult_hint": "abd",
+      "questions": [
+        {
+          "id": "abd.q1",
+          "text": "Where exactly is the pain, and does it move anywhere?",
+          "rationale": "Location and migration pattern narrow the differential."
+        },
+        {
+          "id": "abd.q2",
+          "text": "Any vomiting, and can you keep fluids down?",
+          "rationale": "Intractable vomiting changes urgency and fluid needs."
+        },
+        {
+          "id": "abd.q3",
+          "text": "When did you last eat, and did that change the pain?",
+          "rationale": "Meal relationship distinguishes biliary and peptic patterns."
+        }
+      ],
+      "children": ["abdominal_pain.features"]
+    },
+    "abdominal_pain.features": {
+      "label": "Abdominal pain — associated features",
+      "description": "Characterizing associated GI and systemic features.",
+      "consult_hint": "abd",
+      "questions": [
+        {
+          "id": "abd.q4",
+          "text": "Any fever, or blood in stool or vomit?",
+          "rationale": "Bleeding or fever escalates the workup."
+        },
+        {
+          "id": "abd.q5",
+          "text": "When was your last bowel movement, and are you passing gas?",
+          "rationale": "Obstipation raises concern for obstruction."
+        }
+      ],
+      "children": []
+    }
+  }
+}
