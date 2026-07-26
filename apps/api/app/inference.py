@@ -84,6 +84,16 @@ class WhisperXTranscriber:
         duration_ms = int(len(audio) / 16000 * 1000)
         return {"text": text, "duration_ms": duration_ms}
 
+    async def preload(self) -> None:
+        """Materialize the model ahead of the first utterance.
+
+        `_load` is otherwise lazy, so a missing model or an exhausted GPU
+        surfaces on the nurse's first push-to-talk — the worst possible moment.
+        Calling this at startup moves that failure to boot.
+        """
+        async with self._lock:
+            await asyncio.to_thread(self._load)
+
     async def transcribe(self, audio_bytes: bytes, suffix: str) -> dict[str, Any]:
         async with self._lock:
             return await asyncio.to_thread(

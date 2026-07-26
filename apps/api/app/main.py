@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from time import perf_counter
@@ -24,6 +25,8 @@ from .models import (
 from .repository import SessionRepository
 from .service import TriageService
 
+logger = logging.getLogger(__name__)
+
 settings = get_settings()
 
 
@@ -42,6 +45,26 @@ async def lifespan(app: FastAPI):
     )
     app.state.submitter = submitter
     app.state.whisperx_transcriber = whisperx_transcriber
+    app.state.whisperx_preload_error = None
+
+    # Only when STT is genuinely live: in stub and echo modes `whisperx_transcriber`
+    # is a spare instance backing the /whisperx debug endpoints, and preloading it
+    # would pull a GPU model into a run that is meant to stay off the GPU.
+    if settings.whisperx_preload and isinstance(transcriber, WhisperXTranscriber):
+        started_at = perf_counter()
+        try:
+            await transcriber.preload()
+        except Exception as error:  # noqa: BLE001 - reported, never fatal
+            # Not fatal: the unit runs Restart=on-failure, so raising here would
+            # crash-loop the whole governance surface over a degraded GPU. Report
+            # it on /whisperx/status instead and let the operator decide.
+            app.state.whisperx_preload_error = str(error)
+            logger.exception("WhisperX preload failed; STT will retry per utterance")
+        else:
+            logger.info(
+                "WhisperX preloaded in %d ms",
+                round((perf_counter() - started_at) * 1000),
+            )
     yield
 
 
@@ -82,6 +105,7 @@ def whisperx_status() -> dict:
         "compute_type": settings.whisperx_compute_type,
         "language": settings.whisperx_language,
         "loaded": app.state.whisperx_transcriber._model is not None,
+        "preload_error": app.state.whisperx_preload_error,
     }
 
 

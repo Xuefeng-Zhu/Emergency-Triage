@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     whisperx_compute_type: str = "float16"
     whisperx_batch_size: int = 4
     whisperx_language: str = "en"
+    # Load the STT model at startup rather than on the first utterance, so a
+    # bad GPU state fails while the box is booting instead of mid-encounter.
+    # Only consulted when STT is live; stub and echo modes never touch the GPU.
+    whisperx_preload: bool = True
 
     nemoclaw_sandbox: str = "emergency-trial-agent"
     nemoclaw_agent_id: str = "main"

@@ -69,7 +69,18 @@ pnpm run build
 nemoclaw emergency-trial-agent status
 nemoclaw emergency-trial-agent policy-get
 curl -fsS http://127.0.0.1:8787/healthz
+curl -fsS http://127.0.0.1:8787/whisperx/status
 ```
+
+In live mode the API preloads WhisperX during startup, so `/whisperx/status`
+should report `"loaded": true` and `"preload_error": null` before the demo
+begins. A non-null `preload_error` means STT will fail on the first push-to-talk
+— the API stays up deliberately (the unit restarts on failure, and crash-looping
+the governance surface over a degraded GPU is worse), so this check is what
+catches it. The two models do not contend for one inference route: WhisperX
+loads in-process via CTranslate2, while the reasoning model is reached only
+through the NemoClaw sandbox. They do share GB10 unified memory — vLLM holds
+roughly 67 GiB of the 119 GiB, leaving ample room for the STT model.
 
 The live acceptance path is:
 

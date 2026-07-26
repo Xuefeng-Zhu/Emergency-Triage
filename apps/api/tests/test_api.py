@@ -36,6 +36,7 @@ def test_direct_whisperx_endpoint_reports_runtime_and_transcript():
             "compute_type": "float16",
             "language": "en",
             "loaded": False,
+            "preload_error": None,
         }
 
         app.state.whisperx_transcriber = FakeWhisperXTranscriber()
@@ -49,6 +50,69 @@ def test_direct_whisperx_endpoint_reports_runtime_and_transcript():
         assert response.json()["device"] == "cuda"
         assert response.json()["duration_ms"] == 1800
         assert response.json()["processing_ms"] >= 0
+
+
+def _force_live_stt(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("app.main.settings.triage_stt_mode", "live")
+    monkeypatch.setattr(
+        "app.main.settings.triage_database_path", tmp_path / "triage.sqlite3"
+    )
+
+
+def test_live_stt_preloads_the_model_at_startup(tmp_path: Path, monkeypatch):
+    _force_live_stt(monkeypatch, tmp_path)
+    loads: list[int] = []
+
+    def fake_load(self):
+        loads.append(1)
+        self._model = object()
+        return self._model
+
+    monkeypatch.setattr("app.inference.WhisperXTranscriber._load", fake_load)
+
+    with TestClient(app) as client:
+        # Loaded before any utterance is posted — that is the whole point.
+        assert loads == [1]
+        assert client.get("/whisperx/status").json() == {
+            "model": "large-v3-turbo",
+            "device": "cuda",
+            "compute_type": "float16",
+            "language": "en",
+            "loaded": True,
+            "preload_error": None,
+        }
+
+
+def test_preload_failure_is_reported_without_taking_the_api_down(
+    tmp_path: Path, monkeypatch
+):
+    _force_live_stt(monkeypatch, tmp_path)
+
+    def fail_load(self):
+        raise RuntimeError("CUDA out of memory")
+
+    monkeypatch.setattr("app.inference.WhisperXTranscriber._load", fail_load)
+
+    with TestClient(app) as client:
+        # The governance surface must survive a degraded GPU; only STT is lost.
+        assert client.get("/healthz").status_code == 200
+        status = client.get("/whisperx/status").json()
+        assert status["loaded"] is False
+        assert "CUDA out of memory" in status["preload_error"]
+
+
+def test_stub_mode_never_preloads_a_gpu_model(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(
+        "app.main.settings.triage_database_path", tmp_path / "triage.sqlite3"
+    )
+
+    def forbidden_load(self):
+        raise AssertionError("Stub mode must not touch the GPU.")
+
+    monkeypatch.setattr("app.inference.WhisperXTranscriber._load", forbidden_load)
+
+    with TestClient(app) as client:
+        assert client.get("/whisperx/status").json()["loaded"] is False
 
 
 def test_stub_workflow(tmp_path: Path, monkeypatch):
