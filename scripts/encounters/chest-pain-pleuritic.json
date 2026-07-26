@@ -1,0 +1,18 @@
+{
+  "name": "Chest pain — pleuritic / PE risk (scripted)",
+  "expect_pathway_prefix": "chest_pain",
+  "utterances": [
+    {
+      "speaker": "patient",
+      "text": "I have a sharp pain on the right side of my chest. It got much worse overnight and it really stabs when I take a deep breath."
+    },
+    {
+      "speaker": "patient",
+      "text": "I've also been coughing, and this morning there was a streak of blood in it. My right calf has been swollen and sore since last week."
+    },
+    {
+      "speaker": "patient",
+      "text": "I flew back from Singapore ten days ago, and I'm on birth control pills. Nobody in my family has had clots that I know of."
+    }
+  ]
+}

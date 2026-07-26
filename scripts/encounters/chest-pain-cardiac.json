@@ -1,0 +1,18 @@
+{
+  "name": "Chest pain — cardiac features (scripted)",
+  "expect_pathway_prefix": "chest_pain",
+  "utterances": [
+    {
+      "speaker": "patient",
+      "text": "I've had this heavy pressure in my chest since about seven this morning. It started while I was carrying groceries up the stairs."
+    },
+    {
+      "speaker": "patient",
+      "text": "The pressure goes into my left arm and up to my jaw. I've been sweating a lot and I feel a bit sick to my stomach."
+    },
+    {
+      "speaker": "patient",
+      "text": "I take pills for blood pressure and my cholesterol is high. I smoked for twenty years but quit a while ago. My father had a heart attack at fifty."
+    }
+  ]
+}

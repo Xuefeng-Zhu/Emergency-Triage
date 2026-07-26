@@ -59,6 +59,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "mode": settings.triage_mode,
+        "stt_mode": settings.triage_stt_mode or settings.triage_mode,
         "local_processing": True,
         "egress_default": "deny",
     }
