@@ -1,0 +1,19 @@
+[Unit]
+Description=Emergency Trial FastAPI
+After=network.target
+
+[Service]
+Type=simple
+User=dell
+WorkingDirectory=/home/dell/Emergency-Trial
+EnvironmentFile=/home/dell/Emergency-Trial/.env
+ExecStart=/home/dell/Emergency-Trial/.venv/bin/uvicorn app.main:app --app-dir apps/api --host 0.0.0.0 --port 8787
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/dell/Emergency-Trial/data
+
+[Install]
+WantedBy=multi-user.target

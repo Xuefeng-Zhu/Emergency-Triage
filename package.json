@@ -1,0 +1,18 @@
+{
+  "name": "emergency-trial",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @emergency-trial/web dev",
+    "build": "pnpm --filter @emergency-trial/web build",
+    "test:web": "pnpm --filter @emergency-trial/web test",
+    "typecheck": "pnpm --filter @emergency-trial/web typecheck"
+  },
+  "engines": {
+    "node": ">=22.16",
+    "npm": ">=10"
+  }
+}

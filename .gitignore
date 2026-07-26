@@ -1,1 +1,12 @@
-ungitable/
+.env
+.venv/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.tsbuildinfo
+*.sqlite3
+data/
+dist/
+node_modules/
+apps/web/dist/
+apps/api/.coverage

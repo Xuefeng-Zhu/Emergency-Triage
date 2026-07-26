@@ -1,0 +1,17 @@
+version: 1
+name: emergency-trial-mock-lis
+description: Permit only approved order submission to the host-side mock LIS.
+network_policies:
+  emergency_trial_mock_lis:
+    name: emergency-trial-mock-lis
+    endpoints:
+      - host: host.openshell.internal
+        port: 8787
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow:
+              method: POST
+              path: /mock-lis/orders
+    binaries:
+      - path: /usr/bin/curl
