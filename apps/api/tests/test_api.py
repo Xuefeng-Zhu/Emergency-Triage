@@ -8,6 +8,10 @@ from app.main import app
 from app.models import Proposal
 
 
+def test_default_whisperx_model_is_large_v3_turbo():
+    assert Settings().whisperx_model == "large-v3-turbo"
+
+
 def test_stub_workflow(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
         "app.main.settings.triage_database_path", tmp_path / "triage.sqlite3"

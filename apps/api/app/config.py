@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     triage_database_path: Path = Path("./data/triage.sqlite3")
     triage_web_origin: str = "http://localhost:5173"
 
-    whisperx_model: str = "large-v3"
+    whisperx_model: str = "large-v3-turbo"
     whisperx_device: str = "cuda"
     whisperx_compute_type: str = "float16"
     whisperx_batch_size: int = 4
