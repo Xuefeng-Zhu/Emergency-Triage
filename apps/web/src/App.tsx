@@ -1,4 +1,5 @@
 import {
+  AudioLines,
   Ban,
   Check,
   ChevronDown,
@@ -31,6 +32,7 @@ import {
   sendUtterance,
 } from "./api";
 import type { Proposal, Session } from "./types";
+import { WhisperXTest } from "./WhisperXTest";
 
 const NURSES = [
   { id: "rn-alex", name: "RN Alex Morgan" },
@@ -49,11 +51,13 @@ function AppHeader({
   nurseIndex,
   onNurseChange,
   onNew,
+  onWhisperXTest,
 }: {
   session: Session | null;
   nurseIndex: number;
   onNurseChange: (value: number) => void;
   onNew: () => void;
+  onWhisperXTest: () => void;
 }) {
   return (
     <header className="app-header">
@@ -86,6 +90,9 @@ function AppHeader({
         </select>
         <ChevronDown size={16} aria-hidden />
       </label>
+      <button className="whisper-link" onClick={onWhisperXTest}>
+        <AudioLines size={17} /> WhisperX test
+      </button>
       <button className="primary compact" onClick={onNew}>
         <Plus size={17} /> New encounter
       </button>
@@ -301,6 +308,9 @@ function ConsultPanel({
 }
 
 export function App() {
+  const [showWhisperXTest, setShowWhisperXTest] = useState(
+    () => window.location.pathname === "/whisperx",
+  );
   const [session, setSession] = useState<Session | null>(null);
   const [nurseIndex, setNurseIndex] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -308,6 +318,13 @@ export function App() {
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const initialized = useRef(false);
+
+  useEffect(() => {
+    const handlePopState = () =>
+      setShowWhisperXTest(window.location.pathname === "/whisperx");
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const refresh = useCallback(async (sessionId: string) => {
     setSession(await getSession(sessionId));
@@ -402,6 +419,20 @@ export function App() {
     }
   };
 
+  const openWhisperXTest = () => {
+    window.history.pushState({}, "", "/whisperx");
+    setShowWhisperXTest(true);
+  };
+
+  const closeWhisperXTest = () => {
+    window.history.pushState({}, "", "/");
+    setShowWhisperXTest(false);
+  };
+
+  if (showWhisperXTest) {
+    return <WhisperXTest onBack={closeWhisperXTest} />;
+  }
+
   return (
     <main className="app-shell">
       <AppHeader
@@ -409,6 +440,7 @@ export function App() {
         nurseIndex={nurseIndex}
         onNurseChange={setNurseIndex}
         onNew={startNew}
+        onWhisperXTest={openWhisperXTest}
       />
       {error ? (
         <div className="error-banner" role="alert">

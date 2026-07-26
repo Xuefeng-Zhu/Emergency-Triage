@@ -1,0 +1,295 @@
+.page {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.tablet {
+  width: auto;
+  height: min(92svh, 980px);
+  aspect-ratio: 3 / 4;
+  background: var(--tablet-bezel);
+  border-radius: 36px;
+  padding: 18px 12px;
+  box-shadow:
+    0 30px 60px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.screen {
+  height: 100%;
+  width: 100%;
+  background: var(--screen-bg);
+  border-radius: 20px;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 20fr auto 15fr 40fr 25fr;
+  gap: 10px;
+  padding: 20px 18px;
+}
+
+.record-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.record-button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--danger);
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgba(209, 53, 43, 0.15);
+  cursor: default;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.panel.session-info {
+  display: flex;
+  align-items: center;
+  padding: 6px 14px;
+  min-height: 0;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  background: rgba(10, 110, 110, 0.06);
+  border-color: rgba(10, 110, 110, 0.3);
+}
+
+.panel.transcript {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.transcript-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.hl-patient,
+.hl-observation,
+.hl-question,
+.hl-diagnosis {
+  font-weight: 700;
+}
+
+.hl-patient {
+  color: var(--node-patient);
+}
+
+.hl-observation {
+  color: var(--node-observation);
+}
+
+.hl-question {
+  color: var(--node-question);
+}
+
+.hl-diagnosis {
+  color: var(--node-diagnosis);
+}
+
+.panel.suggestions {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.suggestions-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.suggestions-header h2 {
+  margin: 0;
+}
+
+.legend {
+  display: flex;
+  gap: 6px;
+}
+
+.legend-item {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 6px;
+  border-radius: 8px;
+  color: #fff;
+}
+
+.legend-item.patient {
+  background: var(--node-patient);
+}
+
+.legend-item.observation {
+  background: var(--node-observation);
+}
+
+.legend-item.question {
+  background: var(--node-question);
+}
+
+.legend-item.diagnosis {
+  background: var(--node-diagnosis);
+}
+
+.graph-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-top: 6px;
+}
+
+.panel.suggestions .graph {
+  display: block;
+  width: 100%;
+  height: 460px;
+}
+
+.panel.choice {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.diagnosis-description {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.diagnosis-description h2 {
+  margin-bottom: 4px;
+}
+
+.selection-buttons {
+  flex: 0 0 auto;
+}
+
+.line {
+  margin: 0 0 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.score {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.selection-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.sel-btn {
+  flex: 1;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #f6f6f7;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-h);
+  cursor: default;
+}
+
+.sel-btn.check {
+  background: rgba(46, 143, 74, 0.12);
+  border-color: #2e8f4a;
+  color: #2e8f4a;
+}
+
+.sel-btn.neutral {
+  background: rgba(199, 160, 12, 0.14);
+  border-color: #c7a00c;
+  color: #8a6f08;
+}
+
+.sel-btn.deny {
+  background: rgba(209, 53, 43, 0.12);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.next-screen-button {
+  position: fixed;
+  right: 32px;
+  bottom: 32px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: #b9bcc2;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.next-screen-button:hover {
+  background: #a5a8af;
+}
+
+.graph {
+  overflow: visible;
+}
+
+.graph line {
+  stroke: #9a9da3;
+  stroke-width: 1.75;
+}
+
+.graph .node circle {
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.graph .node text {
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+  fill: #ffffff;
+}
+
+.graph .node.patient circle {
+  fill: var(--node-patient);
+}
+
+.graph .node.observation circle {
+  fill: var(--node-observation);
+}
+
+.graph .node.question circle {
+  fill: var(--node-question);
+}
+
+.graph .node.diagnosis circle {
+  fill: var(--node-diagnosis);
+}

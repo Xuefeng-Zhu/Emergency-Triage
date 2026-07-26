@@ -16,6 +16,41 @@ from app.pathways import (
 )
 
 
+def test_default_whisperx_model_is_large_v3_turbo():
+    assert Settings().whisperx_model == "large-v3-turbo"
+
+
+def test_direct_whisperx_endpoint_reports_runtime_and_transcript():
+    class FakeWhisperXTranscriber:
+        async def transcribe(self, audio_bytes: bytes, suffix: str):
+            assert audio_bytes == b"speech"
+            assert suffix == ".wav"
+            return {"text": "The patient reports chest pain.", "duration_ms": 1800}
+
+    with TestClient(app) as client:
+        status = client.get("/whisperx/status")
+        assert status.status_code == 200
+        assert status.json() == {
+            "model": "large-v3-turbo",
+            "device": "cuda",
+            "compute_type": "float16",
+            "language": "en",
+            "loaded": False,
+        }
+
+        app.state.whisperx_transcriber = FakeWhisperXTranscriber()
+        response = client.post(
+            "/whisperx/transcribe",
+            files={"audio": ("sample.wav", b"speech", "audio/wav")},
+        )
+        assert response.status_code == 200
+        assert response.json()["text"] == "The patient reports chest pain."
+        assert response.json()["model"] == "large-v3-turbo"
+        assert response.json()["device"] == "cuda"
+        assert response.json()["duration_ms"] == 1800
+        assert response.json()["processing_ms"] >= 0
+
+
 def test_stub_workflow(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
         "app.main.settings.triage_database_path", tmp_path / "triage.sqlite3"

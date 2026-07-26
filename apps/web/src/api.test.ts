@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createSession } from "./api";
+import { createSession, transcribeWithWhisperX } from "./api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -44,6 +44,36 @@ describe("API client", () => {
       2,
       "/api/session/session_demo",
       undefined,
+    );
+  });
+
+  it("uploads an audio sample to the direct WhisperX endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          text: "The patient reports chest pain.",
+          duration_ms: 1800,
+          processing_ms: 420,
+          model: "large-v3-turbo",
+          device: "cuda",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await transcribeWithWhisperX(
+      new Blob(["speech"], { type: "audio/wav" }),
+      "sample.wav",
+    );
+
+    expect(result.model).toBe("large-v3-turbo");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/whisperx/transcribe",
+      expect.objectContaining({ method: "POST", body: expect.any(FormData) }),
     );
   });
 });
