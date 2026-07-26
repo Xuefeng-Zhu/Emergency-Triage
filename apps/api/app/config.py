@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     whisperx_language: str = "en"
 
     nemoclaw_sandbox: str = "emergency-trial-agent"
+    nemoclaw_agent_id: str = "main"
     nemoclaw_timeout_seconds: int = 90
     mock_lis_url: str = "http://host.openshell.internal:8787/mock-lis/orders"
     order_permit_secret: str = "change-me-before-live-mode"

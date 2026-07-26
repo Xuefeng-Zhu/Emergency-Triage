@@ -100,11 +100,19 @@ class OrderSubmitter:
                 body,
                 self.settings.mock_lis_url,
             ],
-            check=True,
+            check=False,
             capture_output=True,
             text=True,
             timeout=30,
         )
+        if completed.returncode != 0:
+            # curl and the sandbox's L7 proxy both explain the refusal on
+            # stderr; the caller only records "egress_failed" without it.
+            raise RuntimeError(
+                f"sandboxed curl exited {completed.returncode}: "
+                f"{(completed.stderr or '').strip()[-1000:]} "
+                f"body={(completed.stdout or '').strip()[-500:]}"
+            )
         return MockOrderResponse.model_validate_json(completed.stdout).order_ref
 
     async def submit(self, proposal: Proposal) -> str:
