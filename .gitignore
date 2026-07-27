@@ -13,3 +13,5 @@ apps/web/dist/
 apps/api/.coverage
 
 ungitable/
+.cache/
+.build/

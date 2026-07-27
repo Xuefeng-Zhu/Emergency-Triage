@@ -133,7 +133,7 @@ type ScreenProps = {
   onInputModeChange: (mode: InputMode) => void
   pathwayHistory: string[]
   onSendUtterance: (text: string, speaker: Speaker) => void
-  onSendAudio: (blob: Blob, speaker: Speaker) => Promise<void>
+  onSendAudio: (blob: Blob, speaker: Speaker) => Promise<boolean>
   onRunConsult: () => void
   onDecision: (proposalId: string, decision: 'approve' | 'deny') => void
 }
@@ -305,7 +305,9 @@ function LiveSuggestionGraph({
 function LiveVisitScreen(props: ScreenProps) {
   const { testDataMode, presentationMode, live, inputMode, onInputModeChange, onSendUtterance, onSendAudio, onRunConsult } = props
   const [draft, setDraft] = useState('')
-  const [micSpeaker, setMicSpeaker] = useState<Speaker>('patient')
+  // The nurse opens the encounter, then the mic alternates with each transcript
+  // that comes back so the dialog turn-taking tracks itself.
+  const [micSpeaker, setMicSpeaker] = useState<Speaker>('nurse')
   const [phase, setPhase] = useState<RecordingPhase>('idle')
   const [micError, setMicError] = useState<string | null>(null)
   const [isRecording, setIsRecording] = useState(true)
@@ -370,7 +372,8 @@ function LiveVisitScreen(props: ScreenProps) {
           const blob = new Blob(chunksRef.current, {
             type: recorder.mimeType || 'audio/webm',
           })
-          await onSendAudio(blob, speaker)
+          const accepted = await onSendAudio(blob, speaker)
+          if (accepted) setMicSpeaker(speaker === 'nurse' ? 'patient' : 'nurse')
         } finally {
           setPhase('idle')
         }
@@ -425,18 +428,18 @@ function LiveVisitScreen(props: ScreenProps) {
               <div className="mic-controls">
                 <div className="mode-switch" role="group" aria-label="Speaker">
                   <button
-                    className={`mode-btn${micSpeaker === 'patient' ? ' active' : ''}`}
-                    disabled={phase === 'recording'}
-                    onClick={() => setMicSpeaker('patient')}
-                  >
-                    Patient
-                  </button>
-                  <button
                     className={`mode-btn${micSpeaker === 'nurse' ? ' active' : ''}`}
                     disabled={phase === 'recording'}
                     onClick={() => setMicSpeaker('nurse')}
                   >
                     Nurse
+                  </button>
+                  <button
+                    className={`mode-btn${micSpeaker === 'patient' ? ' active' : ''}`}
+                    disabled={phase === 'recording'}
+                    onClick={() => setMicSpeaker('patient')}
+                  >
+                    Patient
                   </button>
                 </div>
                 <button
@@ -961,9 +964,11 @@ function App() {
   // Mic path adapts to the backend's STT mode: live STT takes raw audio on
   // /utterance; echo/stub STT gets the recording transcribed by the always-on
   // /whisperx/transcribe endpoint and receives the text instead.
-  const handleSendAudio = async (blob: Blob, speaker: Speaker) => {
+  // Returns true when the utterance landed, so the mic can hand the turn to the
+  // other speaker (a failed transcription leaves the turn where it was).
+  const handleSendAudio = async (blob: Blob, speaker: Speaker): Promise<boolean> => {
     const session = await ensureSession()
-    if (!session) return
+    if (!session) return false
     setLive((s) => ({ ...s, loading: true, error: null }))
     try {
       if (sttModeRef.current === null) {
@@ -980,8 +985,10 @@ function App() {
         updated = await sendUtterance(session.session_id, result.text, speaker)
       }
       adoptSession(updated)
+      return true
     } catch (error) {
       setLive((s) => ({ ...s, loading: false, error: (error as Error).message }))
+      return false
     }
   }
 
