@@ -1,5 +1,6 @@
 .env
 .venv/
+.build/
 .pytest_cache/
 __pycache__/
 *.pyc
@@ -13,3 +14,4 @@ apps/web/dist/
 apps/api/.coverage
 
 ungitable/
+.cache/

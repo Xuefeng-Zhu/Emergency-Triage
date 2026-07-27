@@ -77,15 +77,22 @@ fi
 
 # CTranslate2 4.8.1's legacy CUDA parser predates compute capability 12.1.
 # Keep its validated 9.0 baseline and add the GB10 target explicitly.
-CUDA_ARCH_LIST=9.0 \
-CUDA_NVCC_FLAGS="-gencode=arch=compute_121,code=sm_121" \
+# These must be -D cache variables, not environment variables: CMakeLists.txt
+# reads CUDA_ARCH_LIST directly (defaulting it to "Auto"), so an exported env
+# var is silently ignored and the build autodetects the wrong architecture.
+# CUDA_NVCC_FLAGS is appended to, so seeding it here keeps the sm_121 gencode.
+# CUDNN_LIBRARIES is likewise the plural name find_library caches; -DCUDNN_LIBRARY
+# is a different variable and is ignored. The wheel ships only libcudnn.so.9 with
+# no libcudnn.so symlink, so `NAMES cudnn` cannot resolve it without a full path.
 cmake -S "$source_dir" -B "$build_dir" \
+  -DCUDA_ARCH_LIST=9.0 \
+  -DCUDA_NVCC_FLAGS="-gencode=arch=compute_121,code=sm_121" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="$install_dir" \
   -DCMAKE_INSTALL_RPATH="$cudnn_root/lib;$cuda_root/targets/sbsa-linux/lib" \
   -DCUDA_TOOLKIT_ROOT_DIR="$cuda_root" \
   -DCUDNN_INCLUDE_DIR="$cudnn_root/include" \
-  -DCUDNN_LIBRARY="$cudnn_library" \
+  -DCUDNN_LIBRARIES="$cudnn_library" \
   -DCUDA_DYNAMIC_LOADING=ON \
   -DOPENMP_RUNTIME=COMP \
   -DWITH_CUDA=ON \
@@ -101,14 +108,32 @@ if [[ ! -f "$python_include_root/python$python_version/Python.h" ]]; then
   python_include_root="$python_dev_dir/usr/include"
   if [[ ! -f "$python_include_root/python$python_version/Python.h" ]]; then
     mkdir -p "$python_dev_dir/packages"
-    (
-      cd "$python_dev_dir/packages"
-      apt download "libpython$python_version-dev"
-    )
     python_dev_package="$(
       find "$python_dev_dir/packages" -maxdepth 1 -name "libpython${python_version}-dev_*.deb" \
         -print -quit
     )"
+    # A previously fetched .deb is reused: re-downloading is pure cost, and on a
+    # host whose apt index is stale the download below is exactly what fails.
+    if [[ -z "$python_dev_package" ]]; then
+      # `apt download` asks for the candidate version, which a stale index often
+      # names after the pool has already pruned it (404). Fall back through every
+      # version apt knows about rather than giving up on the first miss.
+      (
+        cd "$python_dev_dir/packages"
+        apt download "libpython$python_version-dev" && exit 0
+        while read -r candidate; do
+          [[ -n "$candidate" ]] || continue
+          if apt download "libpython$python_version-dev=$candidate"; then
+            exit 0
+          fi
+        done < <(apt-cache madison "libpython$python_version-dev" | awk '{print $3}')
+        exit 1
+      ) || true
+      python_dev_package="$(
+        find "$python_dev_dir/packages" -maxdepth 1 -name "libpython${python_version}-dev_*.deb" \
+          -print -quit
+      )"
+    fi
     if [[ -z "$python_dev_package" ]]; then
       echo "Unable to download the Python development headers." >&2
       exit 1
