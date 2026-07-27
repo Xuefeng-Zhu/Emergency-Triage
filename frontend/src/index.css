@@ -1,26 +1,29 @@
 :root {
-  --bg: #ffffff;
-  --tablet-bezel: #1c1c1e;
-  --screen-bg: #ffffff;
-  --border: #d9d9dd;
-  --text: #3a3a3e;
-  --text-h: #08060d;
+  --bg: oklch(94% 0.01 240);
+  --tablet-bezel: linear-gradient(160deg, #16181c, #1f2226);
+  --screen-bg: oklch(98% 0.004 230);
+  --card-bg: #fff;
+  --border: oklch(91% 0.008 240);
+  --text: oklch(38% 0.01 240);
+  --text-h: oklch(28% 0.01 240);
   --placeholder: #e5e4e7;
-  --accent: #0a6e6e;
-  --danger: #d1352b;
-  --mono: 'Consolas', 'SF Mono', 'Segoe UI Mono', ui-monospace, monospace;
+  --accent: oklch(48% 0.1 200);
+  --danger: oklch(50% 0.15 25);
+  --score-color: oklch(46% 0.14 45);
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', 'Consolas', ui-monospace, monospace;
 
-  --node-patient: #1d4ed8;
-  --node-patient-bg: rgba(29, 78, 216, 0.12);
-  --node-observation: #0f9488;
-  --node-observation-bg: rgba(15, 148, 136, 0.12);
-  --node-question: #7c3aed;
-  --node-question-bg: rgba(124, 58, 237, 0.12);
-  --node-diagnosis: #d97706;
-  --node-diagnosis-bg: rgba(217, 119, 6, 0.12);
+  --node-patient: oklch(48% 0.14 260);
+  --node-patient-bg: oklch(48% 0.14 260 / 0.12);
+  --node-observation: oklch(48% 0.09 190);
+  --node-observation-bg: oklch(48% 0.09 190 / 0.12);
+  --node-question: oklch(50% 0.16 300);
+  --node-question-bg: oklch(50% 0.16 300 / 0.12);
+  --node-diagnosis: oklch(52% 0.14 55);
+  --node-diagnosis-bg: oklch(52% 0.14 55 / 0.12);
   --font-scale: 1;
 
-  font: 16px/145% var(--mono);
+  font: 15px/145% var(--sans);
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -39,11 +42,12 @@ body {
 
 h2 {
   margin: 0 0 8px;
-  font-size: calc(11px * var(--font-scale));
+  font-family: var(--mono);
+  font-size: calc(11.5px * var(--font-scale));
   font-weight: 600;
-  color: var(--text-h);
+  color: var(--accent);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.12em;
 }
 
 #root {

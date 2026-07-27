@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import './App.css'
 import {
   createSession,
@@ -124,6 +125,7 @@ type LiveState = {
 
 type ScreenProps = {
   testDataMode: boolean
+  presentationMode: boolean
   live: LiveState
   nurseIndex: number
   onNurseChange: (index: number) => void
@@ -144,12 +146,14 @@ function SessionInfoBar({ testDataMode, live, nurseIndex, onNurseChange }: Scree
   if (testDataMode) {
     return (
       <section className="panel session-info">
+        <span className="session-dot" />
         <span>SESSION #2291 · NURSE J. RIVERA · 08:42:15</span>
       </section>
     )
   }
   return (
     <section className="panel session-info">
+      <span className="session-dot" />
       <span>
         SESSION #{sessionLabel(live.session)}
         {live.session ? ` · ${new Date(live.session.started_at).toLocaleTimeString()}` : ''}
@@ -171,6 +175,22 @@ function SessionInfoBar({ testDataMode, live, nurseIndex, onNurseChange }: Scree
   )
 }
 
+function ScrollArrows({ targetRef }: { targetRef: RefObject<HTMLDivElement | null> }) {
+  const scrollBy = (amount: number) => {
+    targetRef.current?.scrollBy({ top: amount, behavior: 'smooth' })
+  }
+  return (
+    <div className="scroll-arrows">
+      <button className="scroll-arrow" type="button" aria-label="Scroll up" onClick={() => scrollBy(-80)}>
+        &#9650;
+      </button>
+      <button className="scroll-arrow" type="button" aria-label="Scroll down" onClick={() => scrollBy(80)}>
+        &#9660;
+      </button>
+    </div>
+  )
+}
+
 // ---- Live suggestion graph: built from real session data ----
 
 // "chest_pain.initial" → ["chest pain", "initial"]
@@ -184,9 +204,11 @@ function pathwayLines(node: string): string[] {
 function LiveSuggestionGraph({
   pathwayHistory,
   questions,
+  presentationMode,
 }: {
   pathwayHistory: string[]
   questions: Question[]
+  presentationMode: boolean
 }) {
   const centerX = 125
   const levelGap = 78
@@ -207,13 +229,14 @@ function LiveSuggestionGraph({
     y: questionY,
   }))
   const height = (questions.length > 0 ? questionY : current.y) + 40
+  const renderedHeight = height * 1.15 * (presentationMode ? 2 : 1)
 
   return (
     <>
       <svg
         className="graph live-graph"
         viewBox={`0 0 250 ${height}`}
-        style={{ height: `${height * 1.15}px` }}
+        style={{ height: `${renderedHeight}px` }}
         preserveAspectRatio="xMidYMin meet"
         role="img"
         aria-label="Live suggestion graph"
@@ -280,14 +303,17 @@ function LiveSuggestionGraph({
 }
 
 function LiveVisitScreen(props: ScreenProps) {
-  const { testDataMode, live, inputMode, onInputModeChange, onSendUtterance, onSendAudio, onRunConsult } = props
+  const { testDataMode, presentationMode, live, inputMode, onInputModeChange, onSendUtterance, onSendAudio, onRunConsult } = props
   const [draft, setDraft] = useState('')
   const [micSpeaker, setMicSpeaker] = useState<Speaker>('patient')
   const [phase, setPhase] = useState<RecordingPhase>('idle')
   const [micError, setMicError] = useState<string | null>(null)
+  const [isRecording, setIsRecording] = useState(true)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const transcriptRef = useRef<HTMLDivElement>(null)
+  const graphRef = useRef<HTMLDivElement>(null)
 
   // Stop the mic if the user navigates away mid-recording.
   useEffect(() => {
@@ -300,6 +326,13 @@ function LiveVisitScreen(props: ScreenProps) {
       streamRef.current?.getTracks().forEach((track) => track.stop())
     }
   }, [])
+
+  useEffect(() => {
+    if (presentationMode && graphRef.current) {
+      const el = graphRef.current
+      el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2
+    }
+  }, [presentationMode])
 
   const send = (speaker: Speaker) => {
     if (!draft.trim()) return
@@ -364,7 +397,14 @@ function LiveVisitScreen(props: ScreenProps) {
     <div className="live-visit-grid">
       <div className="record-row">
         {testDataMode ? (
-          <button className="record-button" aria-label="Record" />
+          <>
+            <button
+              className={`record-button${isRecording ? ' recording' : ''}`}
+              aria-label="Toggle recording"
+              onClick={() => setIsRecording((r) => !r)}
+            />
+            <span className="record-label">{isRecording ? 'Recording live' : 'Click to record'}</span>
+          </>
         ) : (
           <>
             <div className="mode-switch" role="group" aria-label="Input mode">
@@ -416,35 +456,41 @@ function LiveVisitScreen(props: ScreenProps) {
       <SessionInfoBar {...props} />
 
       <section className="panel transcript">
-        <h2>Transcript</h2>
+        <div className="card-header">
+          <h2>Transcript</h2>
+          <ScrollArrows targetRef={transcriptRef} />
+        </div>
         {testDataMode ? (
-          <div className="transcript-scroll">
+          <div className="transcript-scroll" ref={transcriptRef}>
             <p className="line">
-              Patient: I'm <span className="hl-patient">John Doe</span>, 54. Sudden,
-              sharp <span className="hl-observation">chest pain</span>.
+              <strong>Patient:</strong> I'm <span className="hl-patient">John Doe</span>, 54.
+              Sudden, sharp <span className="hl-observation">chest pain</span>.
             </p>
             <p className="line">
-              Nurse: Does it <span className="hl-question">radiate to your arm</span>?
-            </p>
-            <p className="line">Patient: No, just my chest.</p>
-            <p className="line">
-              Nurse: Any <span className="hl-observation">shortness of breath</span>?
+              <strong>Nurse:</strong> Does it{' '}
+              <span className="hl-question">radiate to your arm</span>?
             </p>
             <p className="line">
-              Patient: Yes, worse <span className="hl-question">at rest</span>.
+              <strong>Patient:</strong> No, just my chest.
             </p>
             <p className="line">
-              Agent: Suggests <span className="hl-diagnosis">possible ACS</span> —
+              <strong>Nurse:</strong> Any <span className="hl-observation">shortness of breath</span>?
+            </p>
+            <p className="line">
+              <strong>Patient:</strong> Yes, worse <span className="hl-question">at rest</span>.
+            </p>
+            <p className="line">
+              <strong>Agent:</strong> Suggests <span className="hl-diagnosis">possible ACS</span> —
               recommend ECG + troponin.
             </p>
             <p className="line">
-              Nurse: Any <span className="hl-question">prior cardiac history</span> or{' '}
-              <span className="hl-question">family MI history</span>?
+              <strong>Nurse:</strong> Any <span className="hl-question">prior cardiac history</span>{' '}
+              or <span className="hl-question">family MI history</span>?
             </p>
           </div>
         ) : (
           <>
-            <div className="transcript-scroll">
+            <div className="transcript-scroll" ref={transcriptRef}>
               {live.session && live.session.transcript.length > 0 ? (
                 live.session.transcript.map((item) => (
                   <p className="line" key={item.utterance_id}>
@@ -492,8 +538,7 @@ function LiveVisitScreen(props: ScreenProps) {
         <div className="diagnosis-description">
           {testDataMode ? (
             <>
-              <h2>Diagnosis Description</h2>
-              <p className="score">Score 7/10</p>
+              <h2>Diagnosis Suggestion</h2>
               <p className="line">
                 Acute chest pain, exertional onset. Recommend ECG + troponin panel given
                 risk factors.
@@ -501,7 +546,7 @@ function LiveVisitScreen(props: ScreenProps) {
             </>
           ) : (
             <>
-              <h2>Pathway Node</h2>
+              <h2>Diagnosis Suggestion</h2>
               <p className="line">
                 {live.session?.suggestions.pathway_node ?? 'intake'}
               </p>
@@ -536,25 +581,29 @@ function LiveVisitScreen(props: ScreenProps) {
       <section className="panel suggestions">
         <div className="suggestions-header">
           <h2>Suggestions</h2>
-          {testDataMode && (
-            <div className="legend">
-              <span className="legend-item patient">Patient</span>
-              <span className="legend-item observation">Observation</span>
-              <span className="legend-item question">Question</span>
-              <span className="legend-item diagnosis">Diagnosis</span>
-            </div>
-          )}
+          <div className="suggestions-header-controls">
+            {testDataMode && (
+              <div className="legend">
+                <span className="legend-item patient">Patient</span>
+                <span className="legend-item observation">Observation</span>
+                <span className="legend-item question">Question</span>
+                <span className="legend-item diagnosis">Diagnosis</span>
+              </div>
+            )}
+            <ScrollArrows targetRef={graphRef} />
+          </div>
         </div>
         {testDataMode ? (
-          <div className="graph-scroll">
+          <div className="graph-scroll" ref={graphRef}>
             <SuggestionGraph />
           </div>
         ) : (
-          <div className="graph-scroll">
+          <div className="graph-scroll" ref={graphRef}>
             {live.session ? (
               <LiveSuggestionGraph
                 pathwayHistory={props.pathwayHistory}
                 questions={live.session.suggestions.questions}
+                presentationMode={presentationMode}
               />
             ) : (
               <p className="line">No session yet.</p>
@@ -850,7 +899,7 @@ const screens = [LiveVisitScreen, ApprovalScreen, VisitNoteScreen]
 
 function App() {
   const [screenIndex, setScreenIndex] = useState(0)
-  const [presentationMode, setPresentationMode] = useState(false)
+  const [presentationMode, setPresentationMode] = useState(true)
   const [testDataMode, setTestDataMode] = useState(false)
   const [inputMode, setInputMode] = useState<InputMode>('type')
   const [nurseIndex, setNurseIndex] = useState(0)
@@ -969,6 +1018,7 @@ function App() {
 
   const screenProps: ScreenProps = {
     testDataMode,
+    presentationMode,
     live,
     nurseIndex,
     onNurseChange: setNurseIndex,
