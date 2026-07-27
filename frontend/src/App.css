@@ -84,24 +84,22 @@
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: 20fr auto 15fr 25fr 40fr;
+  grid-template-rows: 20fr auto 40fr 40fr;
   grid-template-areas:
     'record'
     'session'
     'transcript'
-    'choice'
     'suggestions';
   gap: 10px;
 }
 
 .tablet.presentation-mode .live-visit-grid {
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 20fr auto 40fr 40fr;
+  grid-template-rows: 20fr auto 80fr;
   grid-template-areas:
     'record record'
     'session session'
-    'transcript suggestions'
-    'choice suggestions';
+    'transcript suggestions';
 }
 
 .record-row {
@@ -462,30 +460,6 @@
   color: var(--node-question);
 }
 
-.panel.choice {
-  grid-area: choice;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  overflow: hidden;
-}
-
-.diagnosis-description {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.diagnosis-description h2 {
-  margin-bottom: 4px;
-}
-
-.selection-buttons {
-  flex: 0 0 auto;
-  display: flex;
-  gap: 10px;
-}
-
 .line {
   margin: 0 0 6px;
   font-family: var(--sans);
@@ -497,52 +471,6 @@
 .line strong {
   color: var(--text-h);
   font-weight: 600;
-}
-
-.sel-btn {
-  flex: 1;
-  height: 36px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: #f6f6f7;
-  font-family: var(--sans);
-  font-size: calc(14px * var(--font-scale));
-  font-weight: 600;
-  line-height: 1;
-  color: var(--text-h);
-  cursor: default;
-}
-
-.sel-btn.check {
-  background: oklch(96% 0.03 155);
-  border-color: oklch(83% 0.07 155);
-  color: oklch(45% 0.11 155);
-}
-
-.sel-btn.neutral {
-  background: oklch(97% 0.03 95);
-  border-color: oklch(85% 0.07 95);
-  color: oklch(52% 0.1 85);
-}
-
-.sel-btn.deny {
-  background: oklch(96% 0.03 25);
-  border-color: oklch(84% 0.08 25);
-  color: oklch(50% 0.15 25);
-}
-
-.sel-btn.consult {
-  background: var(--node-observation-bg);
-  border-color: var(--node-observation);
-  color: var(--node-observation);
-  font-size: calc(11px * var(--font-scale));
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.sel-btn.consult:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .nav-button {

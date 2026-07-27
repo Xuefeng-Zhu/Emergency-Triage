@@ -191,119 +191,28 @@ function ScrollArrows({ targetRef }: { targetRef: RefObject<HTMLDivElement | nul
   )
 }
 
-// ---- Live suggestion graph: built from real session data ----
+// ---- Live suggestions: built from real session data ----
 
-// "chest_pain.initial" → ["chest pain", "initial"]
-function pathwayLines(node: string): string[] {
-  return node
-    .split('.')
-    .map((part) => part.replaceAll('_', ' '))
-    .slice(0, 2)
-}
-
-function LiveSuggestionGraph({
-  pathwayHistory,
-  questions,
-  presentationMode,
-}: {
-  pathwayHistory: string[]
-  questions: Question[]
-  presentationMode: boolean
-}) {
-  const centerX = 125
-  const levelGap = 78
-  const patientY = 34
-  const history = pathwayHistory.length > 0 ? pathwayHistory : ['intake']
-
-  const pathNodes = history.map((node, i) => ({
-    id: `path-${i}`,
-    node,
-    x: centerX,
-    y: patientY + (i + 1) * levelGap,
-  }))
-  const current = pathNodes[pathNodes.length - 1]
-  const questionY = current.y + levelGap
-  const questionNodes = questions.map((q, i) => ({
-    id: q.id,
-    x: centerX + (i - (questions.length - 1) / 2) * 72,
-    y: questionY,
-  }))
-  const height = (questions.length > 0 ? questionY : current.y) + 40
-  const renderedHeight = height * 1.15 * (presentationMode ? 2 : 1)
-
+function LiveSuggestionList({ questions }: { questions: Question[] }) {
+  if (questions.length === 0) {
+    return <p className="line">No suggestions yet.</p>
+  }
   return (
-    <>
-      <svg
-        className="graph live-graph"
-        viewBox={`0 0 250 ${height}`}
-        style={{ height: `${renderedHeight}px` }}
-        preserveAspectRatio="xMidYMin meet"
-        role="img"
-        aria-label="Live suggestion graph"
-      >
-        {pathNodes.map((node, i) => (
-          <line
-            key={`edge-${node.id}`}
-            className="edge"
-            x1={centerX}
-            y1={i === 0 ? patientY : pathNodes[i - 1].y}
-            x2={node.x}
-            y2={node.y}
-          />
-        ))}
-        {questionNodes.map((node) => (
-          <line
-            key={`edge-${node.id}`}
-            className="edge answer-pending"
-            x1={current.x}
-            y1={current.y}
-            x2={node.x}
-            y2={node.y}
-          />
-        ))}
-
-        <g className="node patient">
-          <circle cx={centerX} cy={patientY} r={26} />
-          <text x={centerX} y={patientY + 3}>Patient</text>
-        </g>
-        {pathNodes.map((node) => {
-          const lines = pathwayLines(node.node)
-          const lineOffset = (lines.length - 1) * 5
-          return (
-            <g key={node.id} className="node observation">
-              <circle cx={node.x} cy={node.y} r={24} />
-              {lines.map((text, i) => (
-                <text key={i} x={node.x} y={node.y - lineOffset + i * 10 + 3}>
-                  {text}
-                </text>
-              ))}
-            </g>
-          )
-        })}
-        {questionNodes.map((node, i) => (
-          <g key={node.id} className="node question">
-            <circle cx={node.x} cy={node.y} r={18} />
-            <text x={node.x} y={node.y + 3}>Q{i + 1}</text>
-          </g>
-        ))}
-      </svg>
-      {questions.length > 0 && (
-        <ul className="graph-qlist">
-          {questions.map((q, i) => (
-            <li key={q.id}>
-              <strong>Q{i + 1}</strong> {q.text}
-              <br />
-              <span className="citation">{q.rationale}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+    <ul className="graph-qlist">
+      {questions.map((q, i) => (
+        <li key={q.id}>
+          <strong>Q{i + 1}</strong> {q.text}
+          <br />
+          <span className="citation">{q.rationale}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
 function LiveVisitScreen(props: ScreenProps) {
-  const { testDataMode, presentationMode, live, inputMode, onInputModeChange, onSendUtterance, onSendAudio, onRunConsult } = props
+  // `onInputModeChange` is unused while the Mic/Type switch below is commented out.
+  const { testDataMode, presentationMode, live, inputMode, onSendUtterance, onSendAudio } = props
   const [draft, setDraft] = useState('')
   // The nurse opens the encounter, then the mic alternates with each transcript
   // that comes back so the dialog turn-taking tracks itself.
@@ -410,6 +319,9 @@ function LiveVisitScreen(props: ScreenProps) {
           </>
         ) : (
           <>
+            {/* Mic/Type switch — parked: the demo is always mic. To restore, uncomment
+                this block, re-add `onInputModeChange` to the props destructure above, and
+                flip the `useState<InputMode>` default in App() back to 'type'.
             <div className="mode-switch" role="group" aria-label="Input mode">
               <button
                 className={`mode-btn${inputMode === 'mic' ? ' active' : ''}`}
@@ -424,6 +336,7 @@ function LiveVisitScreen(props: ScreenProps) {
                 Type
               </button>
             </div>
+            */}
             {inputMode === 'mic' && (
               <div className="mic-controls">
                 <div className="mode-switch" role="group" aria-label="Speaker">
@@ -537,50 +450,6 @@ function LiveVisitScreen(props: ScreenProps) {
         )}
       </section>
 
-      <section className="panel choice">
-        <div className="diagnosis-description">
-          {testDataMode ? (
-            <>
-              <h2>Diagnosis Suggestion</h2>
-              <p className="line">
-                Acute chest pain, exertional onset. Recommend ECG + troponin panel given
-                risk factors.
-              </p>
-            </>
-          ) : (
-            <>
-              <h2>Diagnosis Suggestion</h2>
-              <p className="line">
-                {live.session?.suggestions.pathway_node ?? 'intake'}
-              </p>
-            </>
-          )}
-        </div>
-        <div className="selection-buttons">
-          {testDataMode ? (
-            <>
-              <button className="sel-btn check" aria-label="Approve">
-                &#10003;
-              </button>
-              <button className="sel-btn neutral" aria-label="Neutral">
-                &#9675;
-              </button>
-              <button className="sel-btn deny" aria-label="Deny">
-                &#10005;
-              </button>
-            </>
-          ) : (
-            <button
-              className="sel-btn consult"
-              disabled={live.loading || !live.session}
-              onClick={onRunConsult}
-            >
-              Run Consult
-            </button>
-          )}
-        </div>
-      </section>
-
       <section className="panel suggestions">
         <div className="suggestions-header">
           <h2>Suggestions</h2>
@@ -603,11 +472,7 @@ function LiveVisitScreen(props: ScreenProps) {
         ) : (
           <div className="graph-scroll" ref={graphRef}>
             {live.session ? (
-              <LiveSuggestionGraph
-                pathwayHistory={props.pathwayHistory}
-                questions={live.session.suggestions.questions}
-                presentationMode={presentationMode}
-              />
+              <LiveSuggestionList questions={live.session.suggestions.questions} />
             ) : (
               <p className="line">No session yet.</p>
             )}
@@ -904,7 +769,8 @@ function App() {
   const [screenIndex, setScreenIndex] = useState(0)
   const [presentationMode, setPresentationMode] = useState(true)
   const [testDataMode, setTestDataMode] = useState(false)
-  const [inputMode, setInputMode] = useState<InputMode>('type')
+  // Always 'mic' — the Mic/Type switch in LiveVisitScreen is commented out for now.
+  const [inputMode, setInputMode] = useState<InputMode>('mic')
   const [nurseIndex, setNurseIndex] = useState(0)
   const [pathwayHistory, setPathwayHistory] = useState<string[]>([])
   const [live, setLive] = useState<LiveState>({ session: null, loading: false, error: null })
